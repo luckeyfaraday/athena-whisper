@@ -1,21 +1,24 @@
 from __future__ import annotations
 
+import math
 import sys
 import tempfile
 import threading
 from enum import Enum, auto
 from pathlib import Path
 
+_ICON_SVG = Path(__file__).parent / "assets" / "athena-app-icon.svg"
+
 from .config import DictationConfig
 
 try:
-    from PyQt6.QtCore import QEvent, QPoint, QTimer, Qt, QThread, pyqtSignal as Signal
-    from PyQt6.QtGui import QColor, QCursor, QPainter
+    from PyQt6.QtCore import QEvent, QPoint, QPointF, QTimer, Qt, QThread, pyqtSignal as Signal
+    from PyQt6.QtGui import QColor, QCursor, QIcon, QPainter, QPen
     from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 except ImportError:
     try:
-        from PySide6.QtCore import QEvent, QPoint, QTimer, Qt, QThread, Signal
-        from PySide6.QtGui import QColor, QCursor, QPainter
+        from PySide6.QtCore import QEvent, QPoint, QPointF, QTimer, Qt, QThread, Signal
+        from PySide6.QtGui import QColor, QCursor, QIcon, QPainter, QPen
         from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
     except ImportError:
         raise ImportError(
@@ -96,6 +99,49 @@ def _x11_paste(text: str, focus_window: str | None, class_window: str | None) ->
         return False
 
 
+# ── Athena logo widget ────────────────────────────────────────────────────────
+
+class AthenaLogoWidget(QWidget):
+    """Paints the Athena 6-line asterisk logo at any size."""
+
+    _INNER_RATIO = 34 / 86  # from SVG geometry
+
+    def __init__(self, size: int = 14, color: str = "#F3EDE3", parent=None) -> None:
+        super().__init__(parent)
+        self.setFixedSize(size, size)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self._color = QColor(color)
+
+    def set_color(self, color: str) -> None:
+        self._color = QColor(color)
+        self.update()
+
+    def paintEvent(self, _event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(self._color)
+        pen.setWidthF(1.5)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+
+        cx = self.width() / 2
+        cy = self.height() / 2
+        r_outer = min(self.width(), self.height()) / 2 - 0.5
+        r_inner = r_outer * self._INNER_RATIO
+
+        for i in range(6):
+            angle = math.radians(90 + 60 * i)
+            cos_a = math.cos(angle)
+            sin_a = math.sin(angle)
+            painter.drawLine(
+                QPointF(cx + r_inner * cos_a, cy - r_inner * sin_a),
+                QPointF(cx + r_outer * cos_a, cy - r_outer * sin_a),
+            )
+        painter.end()
+
+
+# ── States ────────────────────────────────────────────────────────────────────
+
 class State(Enum):
     IDLE = auto()
     RECORDING = auto()
@@ -104,51 +150,86 @@ class State(Enum):
     ERROR = auto()
 
 
+# ── Design tokens ─────────────────────────────────────────────────────────────
+
+_BG       = "#0a0a0c"
+_HEADER   = "#0f0f12"
+_BORDER   = "#1e1e26"
+_TEXT     = "#e2e2e8"
+_MUTED    = "#4a4a56"
+_FONT     = '"JetBrains Mono", "Fira Code", "Cascadia Code", "Liberation Mono", monospace'
+
+_C_IDLE   = "#3a3a46"
+_C_REC    = "#ff3355"
+_C_REC_DIM= "#7a1428"
+_C_PROC   = "#0a84ff"
+_C_DONE   = "#30d158"
+_C_ERR    = "#ff453a"
+
+_STATE_COLORS: dict[State, str] = {
+    State.IDLE:         _C_IDLE,
+    State.RECORDING:    _C_REC,
+    State.TRANSCRIBING: _C_PROC,
+    State.DONE:         _C_DONE,
+    State.ERROR:        _C_ERR,
+}
+
+# Waveform frames cycled during recording (unicode block chars)
+_WAVES = [
+    "▁▂▄▆▇▆▄▂▁▃▅▇▅▃",
+    "▂▄▆▇▆▄▂▁▂▄▆▇▅▃",
+    "▃▅▇▆▄▂▁▂▃▅▇▆▄▂",
+    "▄▆▇▅▃▁▁▂▄▆▇▅▃▂",
+    "▅▇▆▄▂▁▂▃▅▇▆▄▂▁",
+    "▇▆▄▂▁▂▄▅▇▆▄▂▁▂",
+    "▆▄▂▁▂▄▆▇▆▄▂▁▂▄",
+    "▄▂▁▂▄▆▇▆▄▂▁▃▅▇",
+]
+
 _SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
-_BG = "#1c1c1e"
-_SURFACE = "#2c2c2e"
-_BORDER = "#3a3a3c"
-_TEXT = "#ffffff"
-_MUTED = "#aeaeb2"
-_RED = "#ff453a"
-_RED_DIM = "#7a1f1c"
-_YELLOW = "#ffd60a"
-_GREEN = "#32d74b"
-_GRAY = "#636366"
 
-_STYLE = f"""
+def _build_style(state_color: str) -> str:
+    return f"""
 QFrame#container {{
     background-color: {_BG};
-    border-radius: 12px;
-    border: 1px solid {_BORDER};
+    border-radius: 10px;
+    border-top: 1px solid {_BORDER};
+    border-right: 1px solid {_BORDER};
+    border-bottom: 1px solid {_BORDER};
+    border-left: 3px solid {state_color};
 }}
 QWidget#header {{
-    background-color: {_SURFACE};
-    border-top-left-radius: 12px;
-    border-top-right-radius: 12px;
+    background-color: {_HEADER};
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
 }}
-QLabel#title {{
-    color: {_TEXT};
-    font-size: 13px;
-    font-weight: bold;
-}}
-QLabel#dot {{
-    font-size: 11px;
-    color: {_GRAY};
-}}
-QLabel#timer {{
+QLabel#brand {{
     color: {_MUTED};
-    font-size: 11px;
-    font-family: monospace;
-    min-width: 32px;
+    font-family: {_FONT};
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 3px;
+}}
+QLabel#brandDot {{
+    color: {state_color};
+    font-size: 7px;
+    padding-right: 4px;
+}}
+QLabel#timerLabel {{
+    color: {state_color};
+    font-family: {_FONT};
+    font-size: 10px;
+    min-width: 34px;
+    qproperty-alignment: AlignRight;
 }}
 QPushButton#closeBtn {{
     background: transparent;
     color: {_MUTED};
     border: none;
-    font-size: 17px;
-    padding: 0;
+    font-size: 15px;
+    padding: 0 1px;
+    min-width: 18px;
 }}
 QPushButton#closeBtn:hover {{
     color: {_TEXT};
@@ -156,50 +237,37 @@ QPushButton#closeBtn:hover {{
 QWidget#statusArea {{
     background-color: {_BG};
 }}
-QLabel#status {{
-    color: {_TEXT};
-    font-size: 12px;
-}}
-QFrame#divider {{
-    background-color: {_BORDER};
-    border: none;
-    max-height: 1px;
-}}
+"""
+
+
+def _btn_style(bg: str, fg: str, hover: str, border_top: str = _BORDER) -> str:
+    return f"""
 QPushButton#actionBtn {{
-    background-color: {_SURFACE};
-    color: {_TEXT};
+    background-color: {bg};
+    color: {fg};
     border: none;
-    font-size: 13px;
-    font-weight: 600;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
+    font-family: {_FONT};
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+    border-top: 1px solid {border_top};
 }}
 QPushButton#actionBtn:hover:enabled {{
-    background-color: #3a3a3c;
+    background-color: {hover};
 }}
 QPushButton#actionBtn:disabled {{
     color: {_MUTED};
+    background-color: {bg};
 }}
 """
 
-_BTN_RECORD_STYLE = f"""
-QPushButton#actionBtn {{
-    background-color: {_RED};
-    color: white;
-    border: none;
-    font-size: 13px;
-    font-weight: 600;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
-}}
-QPushButton#actionBtn:hover {{
-    background-color: #ff6b63;
-}}
-"""
 
+# ── Worker threads ─────────────────────────────────────────────────────────────
 
 class RecordWorker(QThread):
-    finished = Signal(object)      # emits Path
+    finished = Signal(object)
     error_occurred = Signal(str)
 
     def __init__(self, output_path: Path, cfg: DictationConfig) -> None:
@@ -247,6 +315,8 @@ class TranscribeWorker(QThread):
             self.error_occurred.emit(str(exc))
 
 
+# ── Widget ────────────────────────────────────────────────────────────────────
+
 class DictationWidget(QWidget):
     def __init__(self, cfg: DictationConfig) -> None:
         super().__init__()
@@ -261,8 +331,8 @@ class DictationWidget(QWidget):
         self._dot_bright = True
         self._last_text = ""
         self._last_error = ""
-        self._focus_window: str | None = None   # VTE child / actual key-event target
-        self._class_window: str | None = None   # top-level WM window for class detection
+        self._focus_window: str | None = None
+        self._class_window: str | None = None
 
         self._setup_window()
         self._build_ui()
@@ -278,7 +348,9 @@ class DictationWidget(QWidget):
             | Qt.WindowType.WindowDoesNotAcceptFocus
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setFixedSize(264, 118)
+        self.setFixedSize(268, 118)
+        if _ICON_SVG.exists():
+            self.setWindowIcon(QIcon(str(_ICON_SVG)))
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
@@ -287,34 +359,33 @@ class DictationWidget(QWidget):
 
         self._container = QFrame()
         self._container.setObjectName("container")
-        self._container.setStyleSheet(_STYLE)
         outer.addWidget(self._container)
 
-        layout = QVBoxLayout(self._container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        root = QVBoxLayout(self._container)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        # Header
+        # ── Header ──────────────────────────────────────────────────
         self._header = QWidget()
         self._header.setObjectName("header")
-        self._header.setFixedHeight(32)
+        self._header.setFixedHeight(28)
         self._header.installEventFilter(self)
         hl = QHBoxLayout(self._header)
-        hl.setContentsMargins(12, 0, 10, 0)
+        hl.setContentsMargins(10, 0, 8, 0)
         hl.setSpacing(6)
+        hl.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        self._dot_label = QLabel("●")
-        self._dot_label.setObjectName("dot")
-        self._dot_label.setFixedWidth(13)
-        hl.addWidget(self._dot_label)
+        self._brand_dot = AthenaLogoWidget(size=13)
+        hl.addWidget(self._brand_dot, 0, Qt.AlignmentFlag.AlignVCenter)
 
-        title = QLabel("Athena Dictate")
-        title.setObjectName("title")
-        hl.addWidget(title)
+        brand = QLabel("DICTATE")
+        brand.setObjectName("brand")
+        hl.addWidget(brand, 0, Qt.AlignmentFlag.AlignVCenter)
+
         hl.addStretch()
 
         self._timer_label = QLabel("")
-        self._timer_label.setObjectName("timer")
+        self._timer_label.setObjectName("timerLabel")
         hl.addWidget(self._timer_label)
 
         close_btn = QPushButton("×")
@@ -323,40 +394,30 @@ class DictationWidget(QWidget):
         close_btn.clicked.connect(self.close)
         hl.addWidget(close_btn)
 
-        layout.addWidget(self._header)
+        root.addWidget(self._header)
 
-        # Divider
-        div1 = QFrame()
-        div1.setObjectName("divider")
-        div1.setFrameShape(QFrame.Shape.HLine)
-        layout.addWidget(div1)
-
-        # Status area
+        # ── Status area ─────────────────────────────────────────────
         status_area = QWidget()
         status_area.setObjectName("statusArea")
         status_area.installEventFilter(self)
-        sl = QHBoxLayout(status_area)
-        sl.setContentsMargins(14, 0, 14, 0)
+        sl = QVBoxLayout(status_area)
+        sl.setContentsMargins(12, 0, 12, 0)
+        sl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._status_label = QLabel()
-        self._status_label.setObjectName("status")
-        self._status_label.setWordWrap(True)
+        self._status_label.setObjectName("statusLabel")
+        self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._status_label.setWordWrap(False)
         sl.addWidget(self._status_label)
 
-        layout.addWidget(status_area, 1)
+        root.addWidget(status_area, 1)
 
-        # Divider
-        div2 = QFrame()
-        div2.setObjectName("divider")
-        div2.setFrameShape(QFrame.Shape.HLine)
-        layout.addWidget(div2)
-
-        # Action button
+        # ── Action button ────────────────────────────────────────────
         self._action_btn = QPushButton()
         self._action_btn.setObjectName("actionBtn")
-        self._action_btn.setFixedHeight(38)
+        self._action_btn.setFixedHeight(40)
         self._action_btn.clicked.connect(self._on_action)
-        layout.addWidget(self._action_btn)
+        root.addWidget(self._action_btn)
 
     def _setup_timers(self) -> None:
         self._pulse_timer = QTimer(self)
@@ -371,67 +432,84 @@ class DictationWidget(QWidget):
 
     def _update_ui(self) -> None:
         s = self._state
+        sc = _STATE_COLORS[s]
 
+        # Container border color
+        self._container.setStyleSheet(_build_style(sc))
+
+        # Header logo — stays cream; state is already signalled by the left stripe
+
+        # Timer
         if s == State.RECORDING:
-            dot_color = _RED if self._dot_bright else _RED_DIM
-        elif s == State.TRANSCRIBING:
-            dot_color = _YELLOW if self._dot_bright else "#7a6200"
-        elif s == State.DONE:
-            dot_color = _GREEN
-        elif s == State.ERROR:
-            dot_color = _RED
-        else:
-            dot_color = _GRAY
-
-        self._dot_label.setStyleSheet(f"color: {dot_color};")
-
-        spinner = _SPINNER[self._spinner_frame % len(_SPINNER)]
-
-        if s == State.IDLE:
-            self._status_label.setText("Ready — click below to dictate")
-            self._status_label.setStyleSheet(f"color: {_MUTED}; font-size: 12px;")
-        elif s == State.RECORDING:
-            self._status_label.setText(f"{spinner}  Recording · click Stop to finish")
-            self._status_label.setStyleSheet(f"color: {_TEXT}; font-size: 12px;")
-        elif s == State.TRANSCRIBING:
-            self._status_label.setText(f"{spinner}  Transcribing...")
-            self._status_label.setStyleSheet(f"color: {_MUTED}; font-size: 12px;")
-        elif s == State.DONE:
-            text = self._last_text
-            display = (text[:36] + "…") if len(text) > 38 else text
-            self._status_label.setText(f'✓  "{display}"')
-            self._status_label.setStyleSheet(f"color: {_GREEN}; font-size: 12px;")
-        elif s == State.ERROR:
-            msg = self._last_error[:55]
-            self._status_label.setText(f"✗  {msg}")
-            self._status_label.setStyleSheet(f"color: {_RED}; font-size: 11px;")
-
-        if s == State.RECORDING:
-            elapsed_int = int(self._elapsed)
-            self._timer_label.setText(f"{elapsed_int // 60:01d}:{elapsed_int % 60:02d}")
+            t = int(self._elapsed)
+            self._timer_label.setText(f"{t // 60:01d}:{t % 60:02d}")
+            self._timer_label.setStyleSheet(f"color: {sc}; font-family: {_FONT}; font-size: 10px; min-width: 34px;")
         else:
             self._timer_label.setText("")
 
+        # Status label
         if s == State.IDLE:
-            self._action_btn.setText("▶   Start Recording")
-            self._action_btn.setEnabled(True)
-            self._action_btn.setStyleSheet("")
+            self._status_label.setText("—  READY  —")
+            self._status_label.setStyleSheet(
+                f"color: {_MUTED}; font-family: {_FONT}; font-size: 10px; letter-spacing: 3px;"
+            )
         elif s == State.RECORDING:
-            self._action_btn.setText("■   Stop")
-            self._action_btn.setEnabled(True)
-            self._action_btn.setStyleSheet(_BTN_RECORD_STYLE)
+            wave = _WAVES[self._spinner_frame % len(_WAVES)]
+            wave_color = sc if self._dot_bright else _C_REC_DIM
+            self._status_label.setText(wave)
+            self._status_label.setStyleSheet(
+                f"color: {wave_color}; font-family: {_FONT}; font-size: 14px; letter-spacing: 1px;"
+            )
         elif s == State.TRANSCRIBING:
-            self._action_btn.setText("◌   Transcribing…")
-            self._action_btn.setEnabled(False)
-            self._action_btn.setStyleSheet("")
+            sp = _SPINNER[self._spinner_frame % len(_SPINNER)]
+            self._status_label.setText(f"{sp}  PROCESSING")
+            self._status_label.setStyleSheet(
+                f"color: {sc}; font-family: {_FONT}; font-size: 10px; letter-spacing: 3px;"
+            )
         elif s == State.DONE:
-            self._action_btn.setText("▶   Record Again")
-            self._action_btn.setEnabled(True)
-            self._action_btn.setStyleSheet("")
+            raw = self._last_text
+            display = (raw[:30] + "…") if len(raw) > 32 else raw
+            self._status_label.setText(f"✓  {display}")
+            self._status_label.setStyleSheet(
+                f"color: {sc}; font-family: {_FONT}; font-size: 11px;"
+            )
         elif s == State.ERROR:
-            self._action_btn.setText("▶   Try Again")
+            self._status_label.setText(f"✕  {self._last_error[:38]}")
+            self._status_label.setStyleSheet(
+                f"color: {sc}; font-family: {_FONT}; font-size: 10px;"
+            )
+
+        # Action button
+        if s == State.IDLE:
+            self._action_btn.setText("▶  START RECORDING")
             self._action_btn.setEnabled(True)
-            self._action_btn.setStyleSheet("")
+            self._action_btn.setStyleSheet(
+                _btn_style("#141418", _TEXT, "#1c1c22")
+            )
+        elif s == State.RECORDING:
+            self._action_btn.setText("■  STOP")
+            self._action_btn.setEnabled(True)
+            self._action_btn.setStyleSheet(
+                _btn_style(_C_REC, "#ffffff", "#ff5577", border_top=_C_REC)
+            )
+        elif s == State.TRANSCRIBING:
+            self._action_btn.setText("◌  TRANSCRIBING")
+            self._action_btn.setEnabled(False)
+            self._action_btn.setStyleSheet(
+                _btn_style("#0d1219", sc, "#0d1219")
+            )
+        elif s == State.DONE:
+            self._action_btn.setText("▶  RECORD AGAIN")
+            self._action_btn.setEnabled(True)
+            self._action_btn.setStyleSheet(
+                _btn_style("#091610", sc, "#0e2018", border_top="#1a3d28")
+            )
+        elif s == State.ERROR:
+            self._action_btn.setText("▶  TRY AGAIN")
+            self._action_btn.setEnabled(True)
+            self._action_btn.setStyleSheet(
+                _btn_style("#120909", sc, "#1f1010", border_top="#3a1a1a")
+            )
 
     def _set_state(self, state: State, **kwargs: object) -> None:
         self._state = state
@@ -448,7 +526,7 @@ class DictationWidget(QWidget):
             self._elapsed = 0.0
             self._spinner_frame = 0
             self._dot_bright = True
-            self._pulse_timer.start(450)
+            self._pulse_timer.start(120)
             self._elapsed_timer.start(100)
         elif state == State.TRANSCRIBING:
             self._spinner_frame = 0
@@ -502,10 +580,8 @@ class DictationWidget(QWidget):
     def _on_transcription_done(self, text: str) -> None:
         if text:
             try:
-                from .inject import select_injector
-                if self._cfg.insertion_backend != "auto":
-                    select_injector(self._cfg.insertion_backend).inject(text)
-                elif not _x11_paste(text, self._focus_window, self._class_window):
+                if not _x11_paste(text, self._focus_window, self._class_window):
+                    from .inject import select_injector
                     select_injector(self._cfg.insertion_backend).inject(text)
             except Exception:
                 pass
@@ -533,7 +609,6 @@ class DictationWidget(QWidget):
         self._cleanup_tmpdir()
         super().closeEvent(event)
 
-    # Drag support via eventFilter on header and status area
     def eventFilter(self, obj: object, event: object) -> bool:
         if not isinstance(event, QEvent):
             return super().eventFilter(obj, event)  # type: ignore[arg-type]
@@ -553,9 +628,10 @@ def launch_widget(cfg: DictationConfig) -> None:
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("Athena Dictate")
     app.setQuitOnLastWindowClosed(True)
+    if _ICON_SVG.exists():
+        app.setWindowIcon(QIcon(str(_ICON_SVG)))
 
     widget = DictationWidget(cfg)
-    # Position near top-right of primary screen
     screen = app.primaryScreen()
     if screen is not None:
         geom = screen.availableGeometry()
