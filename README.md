@@ -1,118 +1,259 @@
-# Athena Whisper Topic
+# Athena Whisper: Local Linux Desktop Dictation Widget
 
-Desktop dictation prototype for Athena.
+Athena Whisper is an open-source Linux desktop dictation prototype for turning
+speech into text and inserting it into the currently focused app. It is built
+for the Athena Home AI workspace and uses `faster-whisper` for local speech
+recognition, with X11 keyboard/clipboard injection for system-wide text input.
 
-The v0 target is a Linux speech-input command/widget: activate it, speak into
-the microphone, transcribe locally with `faster-whisper`, clean the result, and
-insert the text into the currently focused text box.
+The goal is a local-first alternative to cloud dictation tools such as Wispr
+Flow: click a small always-on-top widget, speak naturally, transcribe with
+Whisper, clean the text, and type it into Codex, Claude Code, opencode,
+terminals, browsers, chat apps, documents, and other Linux text fields.
 
-## Setup
+## LLM Summary
 
-Create a virtual environment and install the package:
+- Project: Athena Whisper
+- Category: Linux desktop dictation, speech-to-text, voice input, AI dictation
+- Primary use case: system-wide speech input for focused text fields
+- Platform: Linux desktop, currently X11-first
+- ASR engine: `faster-whisper`
+- Default model: `base.en`
+- Default runtime: CPU, `int8`
+- Audio: 16 kHz mono microphone recording
+- UI: PyQt6/PySide6 floating dictation widget
+- Insertion: X11 text injection with keystroke mode for terminals and TUI apps
+- Privacy posture: local transcription by default; no cloud transcription is
+  required by the current implementation
+- Status: v0 prototype, usable but not a polished production dictation app
+
+## What It Does
+
+Athena Whisper provides a small desktop speech-input widget and CLI for Linux:
+
+1. Focus a text box in any app.
+2. Launch `athena-dictate widget`.
+3. Click the widget to start recording.
+4. Speak into the microphone.
+5. Click stop.
+6. The app transcribes speech locally with `faster-whisper`.
+7. The cleaned text is inserted into the previously focused app.
+
+This is designed for hands-free or low-friction text entry in coding agents,
+shells, browsers, notes, chat, email, and desktop applications.
+
+## Features
+
+- Floating always-on-top dictation widget
+- Local Whisper transcription via `faster-whisper`
+- CPU-friendly defaults: `base.en` with `int8` quantization
+- Microphone recording with `sounddevice` and `soundfile`
+- Basic dictation cleanup:
+  - whitespace cleanup
+  - spoken punctuation such as "comma", "period", and "new line"
+- X11 insertion backends:
+  - clipboard paste for normal text fields
+  - terminal paste fallbacks
+  - direct keystroke typing for Codex, Claude Code, opencode, and shells
+- CLI commands for diagnostics, file transcription, one-shot dictation, and
+  insertion testing
+- Configurable defaults through `athena-dictate.toml`
+
+## Current Limitations
+
+- Linux/X11 is the primary supported desktop target.
+- Wayland support depends on compositor-specific tools such as `wl-copy`,
+  `wtype`, or `ydotool`.
+- `faster-whisper` on CPU is practical for short dictation but is not instant
+  large-model streaming ASR.
+- Cleanup is rule-based today; LLM polishing and command mode are future work.
+- System-wide insertion is inherently fragile because every terminal,
+  compositor, and app handles synthetic input differently.
+
+## Install
+
+From this repository:
 
 ```bash
+cd /home/alan/home_ai/projects/athena-whisper-topic
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,gui]"
 ```
 
-For X11 paste insertion, install desktop tools:
+For X11 desktop insertion:
 
 ```bash
 sudo apt-get install xdotool xclip
 ```
 
-Wayland support depends on the compositor. See
-[`docs/desktop-dictation-v0.md`](docs/desktop-dictation-v0.md).
-
-## Usage
-
-Check the local desktop/session environment:
+If PyQt6 reports an XCB platform plugin error, install the common X11 Qt
+runtime libraries:
 
 ```bash
-athena-dictate doctor
+sudo apt-get install libxcb-cursor0 libxcb-xinerama0 libxkbcommon-x11-0
+```
+
+## Run The Widget
+
+Launch the desktop dictation widget:
+
+```bash
+cd /home/alan/home_ai/projects/athena-whisper-topic
+.venv/bin/athena-dictate widget
+```
+
+The repository includes `athena-dictate.toml` configured for terminal-safe
+keystroke insertion:
+
+```toml
+insertion_backend = "x11-keystrokes"
+```
+
+This avoids clipboard paste shortcuts that can be misinterpreted by Codex,
+Claude Code, opencode, and shell-based TUIs.
+
+## CLI Usage
+
+Check the current desktop/session environment:
+
+```bash
+.venv/bin/athena-dictate doctor
 ```
 
 Transcribe an existing audio file:
 
 ```bash
-athena-dictate transcribe-file path/to/audio.wav
+.venv/bin/athena-dictate transcribe-file path/to/audio.wav
 ```
 
-Record five seconds, transcribe, and paste into the focused field:
+Record one short dictation and insert the result:
 
 ```bash
-athena-dictate record-once --seconds 5 --paste
+.venv/bin/athena-dictate record-once --seconds 5 --paste --insertion-backend x11-keystrokes
 ```
 
-For terminal apps such as Codex, Claude Code, and shells, use terminal paste.
-These apps often treat `Ctrl+V` as an image-paste command, while terminal
-emulators usually paste text with `Ctrl+Shift+V`:
+Test keystroke insertion without recording or transcribing:
 
 ```bash
-athena-dictate record-once --seconds 5 --paste --insertion-backend x11-terminal-paste
+.venv/bin/athena-dictate type-text "hello from athena"
 ```
-
-If that still reaches the app as image paste, try `Shift+Insert` paste:
-
-```bash
-athena-dictate record-once --seconds 5 --paste --insertion-backend x11-terminal-shift-insert-paste
-```
-
-If both paste shortcuts are intercepted, use keystrokes, which avoids the
-clipboard entirely:
-
-```bash
-athena-dictate record-once --seconds 5 --paste --insertion-backend x11-keystrokes
-```
-
-Test insertion without recording:
-
-```bash
-athena-dictate type-text "hello from athena"
-```
-
-`type-text` is intentionally hardcoded to keystrokes. It never uses the
-clipboard and never sends a paste shortcut.
 
 Record without inserting:
 
 ```bash
-athena-dictate record-once --seconds 5 --no-paste
+.venv/bin/athena-dictate record-once --seconds 5 --no-paste
 ```
 
-## Defaults
+## Configuration
 
-- Model: `base.en`
-- Device: `cpu`
-- Compute type: `int8`
-- Audio: 16 kHz mono
-- Max recording: 30 seconds
-- Insertion backend: `auto`
-
-Create `athena-dictate.toml` in this repo to override defaults:
+Create or edit `athena-dictate.toml` in the project root:
 
 ```toml
 model = "base.en"
 device = "cpu"
 compute_type = "int8"
 language = "en"
-insertion_backend = "auto"
+sample_rate = 16000
+channels = 1
+max_record_seconds = 30
+insertion_backend = "x11-keystrokes"
+append_space = true
 ```
 
-Useful insertion backends:
+Environment overrides:
 
-- `auto`: normal desktop text fields; currently prefers X11 clipboard paste.
-- `x11-terminal-paste`: terminal paste using `Ctrl+Shift+V`.
-- `x11-terminal-shift-insert-paste`: terminal paste using `Shift+Insert`.
-- `x11-keystrokes`: synthetic keystrokes; best for Codex, Claude Code, and shells.
-- `x11-direct-type`: older synthetic typing fallback.
-- `clipboard-only`: copy transcript and paste manually.
+- `ATHENA_DICTATE_MODEL`
+- `ATHENA_DICTATE_DEVICE`
+- `ATHENA_DICTATE_COMPUTE_TYPE`
+- `ATHENA_DICTATE_LANGUAGE`
+- `ATHENA_DICTATE_INSERTION_BACKEND`
+- `ATHENA_DICTATE_MAX_RECORD_SECONDS`
+
+## Insertion Backends
+
+- `auto`: chooses a backend based on session/tool availability.
+- `x11-clipboard-paste`: copies text and sends `Ctrl+V`.
+- `x11-terminal-paste`: copies text and sends `Ctrl+Shift+V`.
+- `x11-terminal-shift-insert-paste`: copies text and sends `Shift+Insert`.
+- `x11-keystrokes`: types synthetic keystrokes and does not use the clipboard.
+- `x11-direct-type`: older direct typing backend.
+- `clipboard-only`: copies text and requires manual paste.
+- `wayland-clipboard-paste`: Wayland clipboard plus `wtype`, where supported.
+- `ydotool-type`: uinput-based typing through `ydotool`.
+
+For terminals and coding-agent TUIs, use `x11-keystrokes`.
+
+## Architecture
+
+```text
+src/athena_whisper_topic/
+  audio_capture.py     microphone recording to WAV
+  cleanup.py           dictation text normalization
+  cli.py               Typer command-line interface
+  config.py            TOML/env/default configuration
+  transcriber.py       faster-whisper wrapper
+  widget.py            floating PyQt/PySide dictation widget
+  inject/              text insertion backends
+  types.py             transcript dataclasses
+```
+
+Runtime flow:
+
+```text
+widget click
+  -> capture focused X11 target
+  -> record microphone
+  -> transcribe with faster-whisper
+  -> clean text
+  -> insert into target app
+```
+
+## faster-whisper Defaults
+
+The default configuration is intentionally conservative for CPU-only Linux
+laptops:
+
+- `model = "base.en"`
+- `device = "cpu"`
+- `compute_type = "int8"`
+
+Use `tiny.en` for lower latency, `small.en` for better quality, and larger
+models only when the machine has enough CPU/GPU headroom.
+
+## Comparison: Athena Whisper vs Cloud Dictation Apps
+
+Athena Whisper is inspired by system-wide dictation products such as Wispr Flow,
+but the current implementation is local-first:
+
+- Athena Whisper runs ASR locally with `faster-whisper`.
+- Cloud dictation apps often send audio to remote servers for transcription and
+  AI rewriting.
+- Athena Whisper currently focuses on Linux desktop dictation and coding-agent
+  input.
+- Future work may add optional LLM cleanup, selected-text command mode, personal
+  dictionaries, transcript history, and global hotkeys.
 
 ## Development
 
 Run tests:
 
 ```bash
-pytest
+.venv/bin/pytest
 ```
+
+Compile-check the package:
+
+```bash
+.venv/bin/python -m compileall src tests
+```
+
+## Roadmap
+
+- Global push-to-talk hotkey
+- Better Wayland support
+- Optional LLM cleanup/polish pass
+- Command mode for editing selected text by voice
+- Personal dictionary and phrase correction
+- Local transcript history
+- Latency benchmarks across `tiny.en`, `base.en`, and `small.en`
+- Packaging as a desktop app/service
