@@ -20,7 +20,8 @@ app = typer.Typer(help="Athena desktop dictation prototype.")
 BACKEND_HELP = (
     "Insertion backend: auto, clipboard-only, x11-clipboard-paste, "
     "x11-terminal-paste, x11-terminal-shift-insert-paste, x11-direct-type, "
-    "x11-keystrokes, wayland-clipboard-paste, ydotool-type."
+    "x11-keystrokes, wayland-clipboard-paste, windows-clipboard-paste, "
+    "windows-keystrokes, ydotool-type."
 )
 
 
@@ -44,6 +45,7 @@ def doctor() -> None:
             "xclip": shutil.which("xclip"),
             "xsel": shutil.which("xsel"),
         },
+        "is_windows": env.is_windows,
         "selected_injector": select_injector("auto", env).backend_name,
     }
     typer.echo(json.dumps(report, indent=2))

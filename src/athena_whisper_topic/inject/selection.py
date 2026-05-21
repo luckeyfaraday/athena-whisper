@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import os
+import platform
 import shutil
 from dataclasses import dataclass
 
 from .base import ClipboardOnlyInjector, TextInjector
 from .uinput import YdotoolTypeInjector
 from .wayland import WaylandClipboardPasteInjector
+from .windows import WindowsClipboardPasteInjector, WindowsKeystrokeInjector
 from .x11 import (
     X11ClipboardPasteInjector,
     X11DirectTypeInjector,
@@ -23,6 +25,7 @@ class InjectionEnvironment:
     has_wtype: bool
     has_ydotool: bool
     has_clipboard_tool: bool
+    is_windows: bool = False
 
     @classmethod
     def detect(cls) -> "InjectionEnvironment":
@@ -34,6 +37,7 @@ class InjectionEnvironment:
             has_wtype=shutil.which("wtype") is not None,
             has_ydotool=shutil.which("ydotool") is not None,
             has_clipboard_tool=any(shutil.which(tool) is not None for tool in clipboard_tools),
+            is_windows=platform.system().lower() == "windows",
         )
 
 
@@ -58,6 +62,10 @@ def select_injector(
         return X11KeystrokeInjector()
     if backend == "wayland-clipboard-paste":
         return WaylandClipboardPasteInjector()
+    if backend == "windows-clipboard-paste":
+        return WindowsClipboardPasteInjector()
+    if backend == "windows-keystrokes":
+        return WindowsKeystrokeInjector()
     if backend == "ydotool-type":
         return YdotoolTypeInjector()
     if backend != "auto":
@@ -69,6 +77,8 @@ def select_injector(
         return X11DirectTypeInjector()
     if session == "wayland" and environment.has_wtype and environment.has_clipboard_tool:
         return WaylandClipboardPasteInjector()
+    if environment.is_windows:
+        return WindowsKeystrokeInjector()
     if environment.has_ydotool:
         return YdotoolTypeInjector()
     return ClipboardOnlyInjector(environment.session_type)
