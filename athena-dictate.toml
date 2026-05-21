@@ -1,1 +1,1 @@
-insertion_backend = "x11-keystrokes"
+insertion_backend = "auto"

@@ -62,3 +62,23 @@ def test_falls_back_to_clipboard_only() -> None:
         has_clipboard_tool=False,
     )
     assert select_injector("auto", env).backend_name == "clipboard-only"
+
+
+def test_selects_windows_keystrokes_on_windows() -> None:
+    env = InjectionEnvironment(
+        session_type=None,
+        has_xdotool=False,
+        has_wtype=False,
+        has_ydotool=False,
+        has_clipboard_tool=False,
+        is_windows=True,
+    )
+    assert select_injector("auto", env).backend_name == "windows-keystrokes"
+
+
+def test_can_select_windows_clipboard_paste_explicitly() -> None:
+    assert select_injector("windows-clipboard-paste").backend_name == "windows-clipboard-paste"
+
+
+def test_can_select_windows_keystrokes_explicitly() -> None:
+    assert select_injector("windows-keystrokes").backend_name == "windows-keystrokes"
