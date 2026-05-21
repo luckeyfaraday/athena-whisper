@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 from dataclasses import dataclass
 
 from .base import ClipboardOnlyInjector, TextInjector
@@ -14,10 +15,12 @@ from .x11 import (
     X11TerminalPasteInjector,
     X11TerminalShiftInsertPasteInjector,
 )
+from .windows import WindowsClipboardPasteInjector, WindowsSendInputInjector
 
 
 @dataclass(frozen=True)
 class InjectionEnvironment:
+    platform: str
     session_type: str | None
     has_xdotool: bool
     has_wtype: bool
@@ -29,6 +32,7 @@ class InjectionEnvironment:
         session_type = os.getenv("XDG_SESSION_TYPE")
         clipboard_tools = ("wl-copy", "xclip", "xsel")
         return cls(
+            platform=sys.platform,
             session_type=session_type,
             has_xdotool=shutil.which("xdotool") is not None,
             has_wtype=shutil.which("wtype") is not None,
@@ -42,10 +46,15 @@ def select_injector(
     env: InjectionEnvironment | None = None,
 ) -> TextInjector:
     environment = env or InjectionEnvironment.detect()
+    platform = environment.platform
     session = (environment.session_type or "").lower()
 
     if backend == "clipboard-only":
         return ClipboardOnlyInjector(environment.session_type)
+    if backend == "windows-sendinput":
+        return WindowsSendInputInjector()
+    if backend == "windows-clipboard-paste":
+        return WindowsClipboardPasteInjector()
     if backend == "x11-clipboard-paste":
         return X11ClipboardPasteInjector()
     if backend == "x11-terminal-paste":
@@ -63,6 +72,8 @@ def select_injector(
     if backend != "auto":
         raise ValueError(f"Unknown insertion backend: {backend}")
 
+    if platform == "win32":
+        return WindowsSendInputInjector()
     if session == "x11" and environment.has_xdotool and environment.has_clipboard_tool:
         return X11ClipboardPasteInjector()
     if session == "x11" and environment.has_xdotool:
