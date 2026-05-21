@@ -1,0 +1,17 @@
+.venv/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+
+.context-workspace/
+.agents/
+.claude/
+.codex/
+
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+recordings/
+tmp/

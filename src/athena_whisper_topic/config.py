@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+import os
+import tomllib
+from dataclasses import dataclass, replace
+from pathlib import Path
+from typing import Any
+
+
+@dataclass(frozen=True)
+class DictationConfig:
+    model: str = "base.en"
+    device: str = "cpu"
+    compute_type: str = "int8"
+    language: str = "en"
+    sample_rate: int = 16_000
+    channels: int = 1
+    max_record_seconds: float = 30.0
+    beam_size: int = 5
+    vad_filter: bool = True
+    word_timestamps: bool = False
+    insertion_backend: str = "auto"
+    append_space: bool = True
+
+    @classmethod
+    def from_file(cls, path: str | Path | None) -> "DictationConfig":
+        if path is None:
+            return cls.from_default_locations()
+        config_path = Path(path).expanduser()
+        if not config_path.exists():
+            raise FileNotFoundError(config_path)
+        return cls.from_mapping(tomllib.loads(config_path.read_text()))
+
+    @classmethod
+    def from_default_locations(cls) -> "DictationConfig":
+        candidates = [
+            Path.cwd() / "athena-dictate.toml",
+            Path.home() / ".config" / "athena-dictate" / "config.toml",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return cls.from_file(candidate)
+        return cls()
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> "DictationConfig":
+        allowed = set(cls.__dataclass_fields__)
+        values = {key: value for key, value in data.items() if key in allowed}
+        return cls(**values)
+
+    def with_env_overrides(self) -> "DictationConfig":
+        mapping: dict[str, tuple[str, type]] = {
+            "ATHENA_DICTATE_MODEL": ("model", str),
+            "ATHENA_DICTATE_DEVICE": ("device", str),
+            "ATHENA_DICTATE_COMPUTE_TYPE": ("compute_type", str),
+            "ATHENA_DICTATE_LANGUAGE": ("language", str),
+            "ATHENA_DICTATE_INSERTION_BACKEND": ("insertion_backend", str),
+            "ATHENA_DICTATE_MAX_RECORD_SECONDS": ("max_record_seconds", float),
+        }
+        updates: dict[str, object] = {}
+        for env_name, (field_name, caster) in mapping.items():
+            value = os.getenv(env_name)
+            if value:
+                updates[field_name] = caster(value)
+        return replace(self, **updates)

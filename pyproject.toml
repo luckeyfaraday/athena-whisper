@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "athena-whisper-topic"
+version = "0.1.0"
+description = "Desktop dictation prototype for Athena using faster-whisper."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "faster-whisper>=1.1.0",
+  "numpy>=1.26",
+  "pyperclip>=1.9.0",
+  "sounddevice>=0.4.6",
+  "soundfile>=0.12.1",
+  "typer>=0.12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+gui = [
+  "PyQt6>=6.4",
+]
+
+[project.scripts]
+athena-dictate = "athena_whisper_topic.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/athena_whisper_topic"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
