@@ -4,7 +4,6 @@ from athena_whisper_topic.inject.x11 import X11KeystrokeInjector
 
 def test_selects_x11_clipboard_paste_when_xdotool_and_clipboard_available() -> None:
     env = InjectionEnvironment(
-        platform="linux",
         session_type="x11",
         has_xdotool=True,
         has_wtype=False,
@@ -16,7 +15,6 @@ def test_selects_x11_clipboard_paste_when_xdotool_and_clipboard_available() -> N
 
 def test_selects_x11_direct_type_when_clipboard_tool_missing() -> None:
     env = InjectionEnvironment(
-        platform="linux",
         session_type="x11",
         has_xdotool=True,
         has_wtype=False,
@@ -46,7 +44,6 @@ def test_x11_keystrokes_has_modifier_release_delay() -> None:
 
 def test_selects_wayland_clipboard_paste_when_wtype_and_clipboard_available() -> None:
     env = InjectionEnvironment(
-        platform="linux",
         session_type="wayland",
         has_xdotool=False,
         has_wtype=True,
@@ -58,7 +55,6 @@ def test_selects_wayland_clipboard_paste_when_wtype_and_clipboard_available() ->
 
 def test_falls_back_to_clipboard_only() -> None:
     env = InjectionEnvironment(
-        platform="linux",
         session_type="x11",
         has_xdotool=False,
         has_wtype=False,
@@ -66,19 +62,3 @@ def test_falls_back_to_clipboard_only() -> None:
         has_clipboard_tool=False,
     )
     assert select_injector("auto", env).backend_name == "clipboard-only"
-
-
-def test_selects_windows_sendinput_on_windows() -> None:
-    env = InjectionEnvironment(
-        platform="win32",
-        session_type=None,
-        has_xdotool=False,
-        has_wtype=False,
-        has_ydotool=False,
-        has_clipboard_tool=False,
-    )
-    assert select_injector("auto", env).backend_name == "windows-sendinput"
-
-
-def test_can_select_windows_clipboard_paste_explicitly() -> None:
-    assert select_injector("windows-clipboard-paste").backend_name == "windows-clipboard-paste"

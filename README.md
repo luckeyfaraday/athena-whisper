@@ -15,13 +15,13 @@ terminals, browsers, chat apps, documents, and other Linux text fields.
 - Project: Athena Whisper
 - Category: Linux desktop dictation, speech-to-text, voice input, AI dictation
 - Primary use case: system-wide speech input for focused text fields
-- Platform: Linux desktop, X11-first; early Windows insertion backend included
+- Platform: Linux desktop, currently X11-first
 - ASR engine: `faster-whisper`
 - Default model: `base.en`
 - Default runtime: CPU, `int8`
 - Audio: 16 kHz mono microphone recording
 - UI: PyQt6/PySide6 floating dictation widget
-- Insertion: X11 text injection on Linux; Win32 `SendInput` on Windows
+- Insertion: X11 text injection with keystroke mode for terminals and TUI apps
 - Privacy posture: local transcription by default; no cloud transcription is
   required by the current implementation
 - Status: v0 prototype, usable but not a polished production dictation app
@@ -61,7 +61,6 @@ shells, browsers, notes, chat, email, and desktop applications.
 ## Current Limitations
 
 - Linux/X11 is the primary supported desktop target.
-- Windows has an early `SendInput` backend for typing text into the focused app.
 - Wayland support depends on compositor-specific tools such as `wl-copy`,
   `wtype`, or `ydotool`.
 - `faster-whisper` on CPU is practical for short dictation but is not instant
@@ -94,36 +93,6 @@ runtime libraries:
 sudo apt-get install libxcb-cursor0 libxcb-xinerama0 libxkbcommon-x11-0
 ```
 
-### Windows Install
-
-From PowerShell:
-
-```powershell
-git clone https://github.com/luckeyfaraday/athena-whisper.git
-cd athena-whisper
-py -3 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e ".[dev,gui]"
-```
-
-Windows microphone capture, PyQt UI, and `faster-whisper` should work through
-the same Python package stack. The first Windows insertion backend uses Win32
-`SendInput` Unicode keyboard events:
-
-```powershell
-.\.venv\Scripts\athena-dictate.exe insert-text "hello from athena" --insertion-backend windows-sendinput
-```
-
-Clipboard paste fallback is available:
-
-```powershell
-.\.venv\Scripts\athena-dictate.exe insert-text "hello from athena" --insertion-backend windows-clipboard-paste
-```
-
-Windows caveat: `SendInput` may not inject into elevated/admin apps from a
-non-elevated Athena Whisper process because of Windows integrity-level
-protections.
-
 ## Run The Widget
 
 Launch the desktop dictation widget:
@@ -142,18 +111,6 @@ insertion_backend = "x11-keystrokes"
 
 This avoids clipboard paste shortcuts that can be misinterpreted by Codex,
 Claude Code, opencode, and shell-based TUIs.
-
-On Windows, use:
-
-```powershell
-.\.venv\Scripts\athena-dictate.exe widget
-```
-
-Set this in `athena-dictate.toml` for Windows:
-
-```toml
-insertion_backend = "windows-sendinput"
-```
 
 ## CLI Usage
 
@@ -223,9 +180,6 @@ Environment overrides:
 - `clipboard-only`: copies text and requires manual paste.
 - `wayland-clipboard-paste`: Wayland clipboard plus `wtype`, where supported.
 - `ydotool-type`: uinput-based typing through `ydotool`.
-- `windows-sendinput`: Win32 Unicode keystroke injection.
-- `windows-clipboard-paste`: copy text to the Windows clipboard and send
-  `Ctrl+V`.
 
 For terminals and coding-agent TUIs, use `x11-keystrokes`.
 
@@ -296,7 +250,6 @@ Compile-check the package:
 ## Roadmap
 
 - Global push-to-talk hotkey
-- Windows widget smoke testing and packaging
 - Better Wayland support
 - Optional LLM cleanup/polish pass
 - Command mode for editing selected text by voice

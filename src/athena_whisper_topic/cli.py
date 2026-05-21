@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import sys
 import tempfile
 import threading
 from pathlib import Path
@@ -21,8 +20,7 @@ app = typer.Typer(help="Athena desktop dictation prototype.")
 BACKEND_HELP = (
     "Insertion backend: auto, clipboard-only, x11-clipboard-paste, "
     "x11-terminal-paste, x11-terminal-shift-insert-paste, x11-direct-type, "
-    "x11-keystrokes, wayland-clipboard-paste, ydotool-type, "
-    "windows-sendinput, windows-clipboard-paste."
+    "x11-keystrokes, wayland-clipboard-paste, ydotool-type."
 )
 
 
@@ -35,7 +33,6 @@ def doctor() -> None:
     """Report desktop/session tools needed for dictation insertion."""
     env = InjectionEnvironment.detect()
     report = {
-        "platform": sys.platform,
         "session_type": env.session_type,
         "display": os.getenv("DISPLAY"),
         "wayland_display": os.getenv("WAYLAND_DISPLAY"),

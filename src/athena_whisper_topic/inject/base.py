@@ -23,11 +23,6 @@ class TextInjector(Protocol):
 def set_clipboard_text(text: str, session_type: str | None = None) -> str:
     session = (session_type or "").lower()
 
-    if session == "windows":
-        import pyperclip
-
-        pyperclip.copy(text)
-        return "pyperclip"
     if session == "wayland" and shutil.which("wl-copy"):
         subprocess.run(["wl-copy"], input=text, text=True, check=True)
         return "wl-copy"
