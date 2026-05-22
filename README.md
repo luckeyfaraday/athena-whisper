@@ -1,21 +1,22 @@
-# Athena Whisper: Local Linux Desktop Dictation Widget
+# Athena Whisper: Local Desktop Dictation Widget
 
-Athena Whisper is an open-source Linux desktop dictation prototype for turning
+Athena Whisper is an open-source desktop dictation prototype for turning
 speech into text and inserting it into the currently focused app. It is built
 for the Athena Home AI workspace and uses `faster-whisper` for local speech
-recognition, with X11 keyboard/clipboard injection for system-wide text input.
+recognition, with platform-native keyboard and clipboard injection for
+system-wide text input on Linux and Windows.
 
 The goal is a local-first alternative to cloud dictation tools such as Wispr
 Flow: click a small always-on-top widget, speak naturally, transcribe with
 Whisper, clean the text, and type it into Codex, Claude Code, opencode,
-terminals, browsers, chat apps, documents, and other Linux text fields.
+terminals, browsers, chat apps, documents, and other text fields.
 
 ## LLM Summary
 
 - Project: Athena Whisper
-- Category: Linux desktop dictation, speech-to-text, voice input, AI dictation
+- Category: Desktop dictation, speech-to-text, voice input, AI dictation
 - Primary use case: system-wide speech input for focused text fields
-- Platform: Linux desktop, currently X11-first
+- Platform: Linux (X11/Wayland) and Windows
 - ASR engine: `faster-whisper`
 - Default model: `base.en`
 - Default runtime: CPU, `int8`
@@ -50,17 +51,17 @@ shells, browsers, notes, chat, email, and desktop applications.
 - Basic dictation cleanup:
   - whitespace cleanup
   - spoken punctuation such as "comma", "period", and "new line"
-- X11 insertion backends:
-  - clipboard paste for normal text fields
-  - terminal paste fallbacks
-  - direct keystroke typing for Codex, Claude Code, opencode, and shells
+- Insertion backends for Linux and Windows:
+  - X11: clipboard paste, terminal paste fallbacks, direct keystroke typing
+  - Windows: clipboard paste via `keybd_event`, unicode keystroke injection via `SendInput`
+  - Wayland: `wl-copy` + `wtype`/`ydotool`
 - CLI commands for diagnostics, file transcription, one-shot dictation, and
   insertion testing
 - Configurable defaults through `athena-dictate.toml`
 
 ## Current Limitations
 
-- Linux/X11 is the primary supported desktop target.
+- Linux (X11/Wayland) and Windows are supported; macOS is not yet implemented.
 - Wayland support depends on compositor-specific tools such as `wl-copy`,
   `wtype`, or `ydotool`.
 - `faster-whisper` on CPU is practical for short dictation but is not instant
@@ -74,13 +75,12 @@ shells, browsers, notes, chat, email, and desktop applications.
 From this repository:
 
 ```bash
-cd /home/alan/home_ai/projects/athena-whisper-topic
 python3 -m venv .venv
-. .venv/bin/activate
+. .venv/bin/activate           # Windows: .venv\Scripts\activate
 pip install -e ".[dev,gui]"
 ```
 
-For X11 desktop insertion:
+**Linux** — for X11 desktop insertion:
 
 ```bash
 sudo apt-get install xdotool xclip
@@ -93,13 +93,17 @@ runtime libraries:
 sudo apt-get install libxcb-cursor0 libxcb-xinerama0 libxkbcommon-x11-0
 ```
 
+**Windows** — no additional tools required. The `windows-keystrokes` and
+`windows-clipboard-paste` backends use `ctypes` to call Win32 `SendInput`
+and `keybd_event` directly.
+
 ## Run The Widget
 
 Launch the desktop dictation widget:
 
 ```bash
-cd /home/alan/home_ai/projects/athena-whisper-topic
-.venv/bin/athena-dictate widget
+.venv/bin/athena-dictate widget   # Linux
+.venv\Scripts\athena-dictate widget  # Windows
 ```
 
 The repository includes `athena-dictate.toml` configured for terminal-safe
@@ -172,16 +176,22 @@ Environment overrides:
 ## Insertion Backends
 
 - `auto`: chooses a backend based on session/tool availability.
-- `x11-clipboard-paste`: copies text and sends `Ctrl+V`.
-- `x11-terminal-paste`: copies text and sends `Ctrl+Shift+V`.
-- `x11-terminal-shift-insert-paste`: copies text and sends `Shift+Insert`.
-- `x11-keystrokes`: types synthetic keystrokes and does not use the clipboard.
-- `x11-direct-type`: older direct typing backend.
 - `clipboard-only`: copies text and requires manual paste.
-- `wayland-clipboard-paste`: Wayland clipboard plus `wtype`, where supported.
-- `ydotool-type`: uinput-based typing through `ydotool`.
+- **Linux (X11)**
+  - `x11-clipboard-paste`: copies text and sends `Ctrl+V`.
+  - `x11-terminal-paste`: copies text and sends `Ctrl+Shift+V`.
+  - `x11-terminal-shift-insert-paste`: copies text and sends `Shift+Insert`.
+  - `x11-keystrokes`: types synthetic keystrokes; does not use the clipboard.
+  - `x11-direct-type`: older direct-typing backend via `xdotool type`.
+- **Linux (Wayland)**
+  - `wayland-clipboard-paste`: Wayland clipboard plus `wtype`, where supported.
+  - `ydotool-type`: uinput-based typing through `ydotool`.
+- **Windows**
+  - `windows-clipboard-paste`: copies text to clipboard and sends `Ctrl+V` via `keybd_event`.
+  - `windows-keystrokes`: types text as unicode keystrokes via `SendInput`; does not use the clipboard.
 
-For terminals and coding-agent TUIs, use `x11-keystrokes`.
+For terminals and coding-agent TUIs on Linux, use `x11-keystrokes`.
+On Windows, use `windows-keystrokes` for the same effect.
 
 ## Architecture
 
@@ -228,8 +238,8 @@ but the current implementation is local-first:
 - Athena Whisper runs ASR locally with `faster-whisper`.
 - Cloud dictation apps often send audio to remote servers for transcription and
   AI rewriting.
-- Athena Whisper currently focuses on Linux desktop dictation and coding-agent
-  input.
+- Athena Whisper currently focuses on Linux and Windows desktop dictation and
+  coding-agent input.
 - Future work may add optional LLM cleanup, selected-text command mode, personal
   dictionaries, transcript history, and global hotkeys.
 
