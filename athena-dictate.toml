@@ -1,1 +1,3 @@
+model = "base"
+language = "auto"
 insertion_backend = "auto"

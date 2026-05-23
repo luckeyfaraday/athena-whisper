@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import threading
+from dataclasses import replace
 from pathlib import Path
 
 import typer
@@ -23,10 +24,31 @@ BACKEND_HELP = (
     "x11-keystrokes, wayland-clipboard-paste, windows-clipboard-paste, "
     "windows-keystrokes, ydotool-type."
 )
+LANGUAGE_HELP = "Speech language code such as en, es, or de; use auto to detect language."
+TASK_HELP = "Whisper task: transcribe preserves spoken language; translate outputs English."
 
 
 def _load_config(config_path: Path | None) -> DictationConfig:
     return DictationConfig.from_file(config_path).with_env_overrides()
+
+
+def _transcription_overrides(
+    cfg: DictationConfig,
+    language: str | None,
+    multilingual: bool | None,
+    task: str | None,
+) -> DictationConfig:
+    updates: dict[str, object] = {}
+    if language is not None:
+        updates["language"] = language
+    if multilingual is not None:
+        updates["multilingual"] = multilingual
+    if task is not None:
+        normalized_task = task.strip().lower()
+        if normalized_task not in {"transcribe", "translate"}:
+            raise typer.BadParameter("task must be transcribe or translate", param_hint="--task")
+        updates["task"] = normalized_task
+    return replace(cfg, **updates)
 
 
 @app.command("doctor")
@@ -57,9 +79,14 @@ def transcribe_file(
     config: Path | None = typer.Option(None, "--config", "-c", help="TOML config path."),
     json_output: bool = typer.Option(False, "--json", help="Print machine-readable JSON."),
     cleanup: bool = typer.Option(True, "--cleanup/--no-cleanup", help="Clean dictation text."),
+    language: str | None = typer.Option(None, "--language", "-l", help=LANGUAGE_HELP),
+    multilingual: bool | None = typer.Option(
+        None, "--multilingual/--single-language", help="Detect language changes within audio."
+    ),
+    task: str | None = typer.Option(None, "--task", help=TASK_HELP),
 ) -> None:
     """Transcribe an existing audio file."""
-    cfg = _load_config(config)
+    cfg = _transcription_overrides(_load_config(config), language, multilingual, task)
     result = FasterWhisperTranscriber(cfg).transcribe_file(audio)
     text = cleanup_dictation_text(result.text, append_space=False) if cleanup else result.text
     if json_output:
@@ -109,9 +136,14 @@ def record_once(
     insertion_backend: str | None = typer.Option(None, "--insertion-backend", help=BACKEND_HELP),
     config: Path | None = typer.Option(None, "--config", "-c", help="TOML config path."),
     keep_audio: Path | None = typer.Option(None, "--keep-audio", help="Path to save recorded WAV."),
+    language: str | None = typer.Option(None, "--language", "-l", help=LANGUAGE_HELP),
+    multilingual: bool | None = typer.Option(
+        None, "--multilingual/--single-language", help="Detect language changes within audio."
+    ),
+    task: str | None = typer.Option(None, "--task", help=TASK_HELP),
 ) -> None:
     """Record microphone audio once, transcribe it, and optionally paste the text."""
-    cfg = _load_config(config)
+    cfg = _transcription_overrides(_load_config(config), language, multilingual, task)
     with tempfile.TemporaryDirectory(prefix="athena-dictate-") as tmpdir:
         audio_path = keep_audio or Path(tmpdir) / "recording.wav"
 
@@ -160,9 +192,14 @@ def record_once(
 @app.command("widget")
 def widget_cmd(
     config: Path | None = typer.Option(None, "--config", "-c", help="TOML config path."),
+    language: str | None = typer.Option(None, "--language", "-l", help=LANGUAGE_HELP),
+    multilingual: bool | None = typer.Option(
+        None, "--multilingual/--single-language", help="Detect language changes within audio."
+    ),
+    task: str | None = typer.Option(None, "--task", help=TASK_HELP),
 ) -> None:
     """Launch the floating dictation widget."""
-    cfg = _load_config(config)
+    cfg = _transcription_overrides(_load_config(config), language, multilingual, task)
     try:
         from .widget import launch_widget
     except ImportError as exc:
