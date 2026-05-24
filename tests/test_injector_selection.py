@@ -2,7 +2,7 @@ from athena_whisper_topic.inject.selection import InjectionEnvironment, select_i
 from athena_whisper_topic.inject.x11 import X11KeystrokeInjector
 
 
-def test_selects_x11_clipboard_paste_when_xdotool_and_clipboard_available() -> None:
+def test_selects_x11_keystrokes_when_xdotool_available() -> None:
     env = InjectionEnvironment(
         session_type="x11",
         has_xdotool=True,
@@ -10,10 +10,10 @@ def test_selects_x11_clipboard_paste_when_xdotool_and_clipboard_available() -> N
         has_ydotool=False,
         has_clipboard_tool=True,
     )
-    assert select_injector("auto", env).backend_name == "x11-clipboard-paste"
+    assert select_injector("auto", env).backend_name == "x11-keystrokes"
 
 
-def test_selects_x11_direct_type_when_clipboard_tool_missing() -> None:
+def test_selects_x11_keystrokes_when_clipboard_tool_missing() -> None:
     env = InjectionEnvironment(
         session_type="x11",
         has_xdotool=True,
@@ -21,7 +21,7 @@ def test_selects_x11_direct_type_when_clipboard_tool_missing() -> None:
         has_ydotool=False,
         has_clipboard_tool=False,
     )
-    assert select_injector("auto", env).backend_name == "x11-direct-type"
+    assert select_injector("auto", env).backend_name == "x11-keystrokes"
 
 
 def test_can_select_x11_terminal_paste_explicitly() -> None:

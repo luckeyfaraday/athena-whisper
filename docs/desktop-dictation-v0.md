@@ -23,7 +23,7 @@ UI can provide push-to-talk press/release, a tray icon, or a global hotkey.
 - Device: `cpu`
 - Compute type: `int8`
 - Audio: 16 kHz mono WAV
-- Maximum recording: 30 seconds
+- Maximum recording: no hard cap by default
 - Insertion backend: `auto`
 
 These defaults favor a CPU-only laptop. If latency is too high, try `tiny.en`.
@@ -78,10 +78,13 @@ compute_type = "int8"
 language = "en"
 sample_rate = 16000
 channels = 1
-max_record_seconds = 30
+max_record_seconds = 0
 insertion_backend = "auto"
 append_space = true
 ```
+
+Set `max_record_seconds = 0` to record until the user stops manually. This is
+the default. Set a positive value only when you want a hard cap.
 
 Environment overrides:
 

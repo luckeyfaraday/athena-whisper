@@ -71,10 +71,8 @@ def select_injector(
     if backend != "auto":
         raise ValueError(f"Unknown insertion backend: {backend}")
 
-    if session == "x11" and environment.has_xdotool and environment.has_clipboard_tool:
-        return X11ClipboardPasteInjector()
     if session == "x11" and environment.has_xdotool:
-        return X11DirectTypeInjector()
+        return X11KeystrokeInjector()
     if session == "wayland" and environment.has_wtype and environment.has_clipboard_tool:
         return WaylandClipboardPasteInjector()
     if environment.is_windows:

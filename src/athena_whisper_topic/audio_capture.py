@@ -40,11 +40,15 @@ def record_wav(
 def record_wav_until_stop(
     output_path: str | Path,
     stop_event: threading.Event,
-    max_seconds: float,
+    max_seconds: float | None = None,
     sample_rate: int = 16_000,
     channels: int = 1,
 ) -> RecordingInfo:
-    """Record microphone audio until an event is set or max_seconds is reached."""
+    """Record microphone audio until stopped.
+
+    A positive max_seconds value caps the recording. None or <= 0 records until
+    stop_event is set.
+    """
     import numpy as np
     import sounddevice as sd
     import soundfile as sf
@@ -59,7 +63,9 @@ def record_wav_until_stop(
         chunks.append(indata.copy())
 
     with sd.InputStream(samplerate=sample_rate, channels=channels, dtype="float32", callback=callback):
-        while not stop_event.is_set() and time.monotonic() - started_at < max_seconds:
+        while not stop_event.is_set():
+            if max_seconds is not None and max_seconds > 0 and time.monotonic() - started_at >= max_seconds:
+                break
             time.sleep(0.05)
 
     seconds = time.monotonic() - started_at

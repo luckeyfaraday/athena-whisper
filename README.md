@@ -106,15 +106,16 @@ Launch the desktop dictation widget:
 .venv\Scripts\athena-dictate widget  # Windows
 ```
 
-The repository includes `athena-dictate.toml` configured for terminal-safe
-keystroke insertion:
+The repository includes `athena-dictate.toml` configured for platform-safe
+automatic insertion:
 
 ```toml
-insertion_backend = "x11-keystrokes"
+insertion_backend = "auto"
 ```
 
-This avoids clipboard paste shortcuts that can be misinterpreted by Codex,
-Claude Code, opencode, and shell-based TUIs.
+On Linux/X11, `auto` uses keystrokes instead of clipboard paste so terminal apps
+such as Codex, Claude Code, opencode, and shell-based TUIs do not receive
+`Ctrl+V` image-paste shortcuts. On Windows, `auto` uses Win32 keystrokes.
 
 ## CLI Usage
 
@@ -133,7 +134,7 @@ Transcribe an existing audio file:
 Record one short dictation and insert the result:
 
 ```bash
-.venv/bin/athena-dictate record-once --seconds 5 --paste --insertion-backend x11-keystrokes
+.venv/bin/athena-dictate record-once --seconds 5 --paste
 ```
 
 Test keystroke insertion without recording or transcribing:
@@ -159,10 +160,14 @@ compute_type = "int8"
 language = "en"
 sample_rate = 16000
 channels = 1
-max_record_seconds = 30
-insertion_backend = "x11-keystrokes"
+max_record_seconds = 0
+insertion_backend = "auto"
 append_space = true
 ```
+
+`max_record_seconds = 0` means record until the user clicks Stop or presses
+Enter in the terminal workflow. Set a positive value only if you want a hard
+recording cap.
 
 Environment overrides:
 
@@ -175,7 +180,8 @@ Environment overrides:
 
 ## Insertion Backends
 
-- `auto`: chooses a backend based on session/tool availability.
+- `auto`: chooses a platform-safe backend. On Linux/X11 this currently means
+  `x11-keystrokes`; on Windows it means `windows-keystrokes`.
 - `clipboard-only`: copies text and requires manual paste.
 - **Linux (X11)**
   - `x11-clipboard-paste`: copies text and sends `Ctrl+V`.
@@ -190,8 +196,8 @@ Environment overrides:
   - `windows-clipboard-paste`: copies text to clipboard and sends `Ctrl+V` via `keybd_event`.
   - `windows-keystrokes`: types text as unicode keystrokes via `SendInput`; does not use the clipboard.
 
-For terminals and coding-agent TUIs on Linux, use `x11-keystrokes`.
-On Windows, use `windows-keystrokes` for the same effect.
+For terminals and coding-agent TUIs, leave `insertion_backend = "auto"` or use
+the explicit keystroke backend for that platform.
 
 ## Architecture
 
