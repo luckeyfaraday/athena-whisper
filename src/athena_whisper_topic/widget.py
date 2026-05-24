@@ -580,11 +580,10 @@ class DictationWidget(QWidget):
     def _on_transcription_done(self, text: str) -> None:
         if text:
             try:
-                if not _x11_paste(text, self._focus_window, self._class_window):
-                    from .inject import select_injector
-                    select_injector(self._cfg.insertion_backend).inject(text)
+                from .inject import select_injector
+                select_injector(self._cfg.insertion_backend).inject(text)
             except Exception:
-                pass
+                _x11_paste(text, self._focus_window, self._class_window)
         self._cleanup_tmpdir()
         self._set_state(State.DONE, text=text or "(no speech detected)")
 

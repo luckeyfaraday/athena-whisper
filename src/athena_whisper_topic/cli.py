@@ -118,7 +118,10 @@ def record_once(
         if seconds <= 0:
             typer.echo("Press Enter to start recording.")
             input()
-            typer.echo(f"Recording. Press Enter to stop, or wait {cfg.max_record_seconds:g}s.")
+            if cfg.max_record_seconds > 0:
+                typer.echo(f"Recording. Press Enter to stop, or wait {cfg.max_record_seconds:g}s.")
+            else:
+                typer.echo("Recording. Press Enter to stop.")
             stop_event = threading.Event()
             worker = threading.Thread(
                 target=record_wav_until_stop,
@@ -136,7 +139,7 @@ def record_once(
             stop_event.set()
             worker.join()
         else:
-            if seconds > cfg.max_record_seconds:
+            if cfg.max_record_seconds > 0 and seconds > cfg.max_record_seconds:
                 raise typer.BadParameter(
                     f"seconds must be <= max_record_seconds ({cfg.max_record_seconds:g})"
                 )

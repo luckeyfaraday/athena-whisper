@@ -15,7 +15,7 @@ class DictationConfig:
     language: str = "en"
     sample_rate: int = 16_000
     channels: int = 1
-    max_record_seconds: float = 30.0
+    max_record_seconds: float = 0.0
     beam_size: int = 5
     vad_filter: bool = True
     word_timestamps: bool = False
