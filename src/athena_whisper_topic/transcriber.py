@@ -26,10 +26,13 @@ class FasterWhisperTranscriber:
         return self._model
 
     def transcribe_file(self, audio_path: str | Path) -> TranscriptResult:
+        language = self.config.language.strip()
         segments_iter, info = self.model.transcribe(
             str(audio_path),
             beam_size=self.config.beam_size,
-            language=self.config.language or None,
+            language=None if not language or language.lower() == "auto" else language,
+            multilingual=self.config.multilingual,
+            task=self.config.task,
             vad_filter=self.config.vad_filter,
             word_timestamps=self.config.word_timestamps,
         )

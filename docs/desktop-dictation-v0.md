@@ -19,7 +19,7 @@ UI can provide push-to-talk press/release, a tray icon, or a global hotkey.
 
 ## Defaults
 
-- Model: `base.en`
+- Model: `base` (multilingual)
 - Device: `cpu`
 - Compute type: `int8`
 - Audio: 16 kHz mono WAV
@@ -72,10 +72,12 @@ Create `athena-dictate.toml` in this repo or
 `~/.config/athena-dictate/config.toml`:
 
 ```toml
-model = "base.en"
+model = "base"
 device = "cpu"
 compute_type = "int8"
-language = "en"
+language = "auto"
+multilingual = false
+task = "transcribe"
 sample_rate = 16000
 channels = 1
 max_record_seconds = 0
@@ -92,6 +94,8 @@ Environment overrides:
 - `ATHENA_DICTATE_DEVICE`
 - `ATHENA_DICTATE_COMPUTE_TYPE`
 - `ATHENA_DICTATE_LANGUAGE`
+- `ATHENA_DICTATE_MULTILINGUAL`
+- `ATHENA_DICTATE_TASK`
 - `ATHENA_DICTATE_INSERTION_BACKEND`
 - `ATHENA_DICTATE_MAX_RECORD_SECONDS`
 
@@ -101,4 +105,4 @@ Environment overrides:
 - Add a tray/widget process with visible recording/transcribing states.
 - Add desktop hotkey setup notes per environment.
 - Add optional command phrases such as "scratch that" and "select last word".
-- Benchmark `tiny.en`, `base.en`, and `small.en` on Alan's target machine.
+- Benchmark `tiny`, `base`, and `small` on Alan's target machine.

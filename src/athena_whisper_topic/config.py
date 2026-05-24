@@ -9,10 +9,12 @@ from typing import Any
 
 @dataclass(frozen=True)
 class DictationConfig:
-    model: str = "base.en"
+    model: str = "base"
     device: str = "cpu"
     compute_type: str = "int8"
-    language: str = "en"
+    language: str = "auto"
+    multilingual: bool = False
+    task: str = "transcribe"
     sample_rate: int = 16_000
     channels: int = 1
     max_record_seconds: float = 0.0
@@ -54,6 +56,8 @@ class DictationConfig:
             "ATHENA_DICTATE_DEVICE": ("device", str),
             "ATHENA_DICTATE_COMPUTE_TYPE": ("compute_type", str),
             "ATHENA_DICTATE_LANGUAGE": ("language", str),
+            "ATHENA_DICTATE_MULTILINGUAL": ("multilingual", _parse_bool),
+            "ATHENA_DICTATE_TASK": ("task", str),
             "ATHENA_DICTATE_INSERTION_BACKEND": ("insertion_backend", str),
             "ATHENA_DICTATE_MAX_RECORD_SECONDS": ("max_record_seconds", float),
         }
@@ -63,3 +67,12 @@ class DictationConfig:
             if value:
                 updates[field_name] = caster(value)
         return replace(self, **updates)
+
+
+def _parse_bool(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"invalid boolean value: {value!r}")

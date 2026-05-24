@@ -18,7 +18,7 @@ terminals, browsers, chat apps, documents, and other text fields.
 - Primary use case: system-wide speech input for focused text fields
 - Platform: Linux (X11/Wayland) and Windows
 - ASR engine: `faster-whisper`
-- Default model: `base.en`
+- Default model: `base` (multilingual)
 - Default runtime: CPU, `int8`
 - Audio: 16 kHz mono microphone recording
 - UI: PyQt6/PySide6 floating dictation widget
@@ -46,7 +46,7 @@ shells, browsers, notes, chat, email, and desktop applications.
 
 - Floating always-on-top dictation widget
 - Local Whisper transcription via `faster-whisper`
-- CPU-friendly defaults: `base.en` with `int8` quantization
+- CPU-friendly multilingual defaults: `base` with `int8` quantization
 - Microphone recording with `sounddevice` and `soundfile`
 - Basic dictation cleanup:
   - whitespace cleanup
@@ -106,10 +106,12 @@ Launch the desktop dictation widget:
 .venv\Scripts\athena-dictate widget  # Windows
 ```
 
-The repository includes `athena-dictate.toml` configured for platform-safe
-automatic insertion:
+The repository includes `athena-dictate.toml` configured for automatic
+platform-specific insertion:
 
 ```toml
+model = "base"
+language = "auto"
 insertion_backend = "auto"
 ```
 
@@ -129,6 +131,20 @@ Transcribe an existing audio file:
 
 ```bash
 .venv/bin/athena-dictate transcribe-file path/to/audio.wav
+```
+
+Transcribe Spanish explicitly, or automatically detect the spoken language:
+
+```bash
+.venv/bin/athena-dictate transcribe-file path/to/audio.wav --language es
+.venv/bin/athena-dictate transcribe-file path/to/audio.wav --language auto
+```
+
+Enable language changes within one recording, or translate speech to English:
+
+```bash
+.venv/bin/athena-dictate record-once --multilingual
+.venv/bin/athena-dictate transcribe-file path/to/audio.wav --task translate
 ```
 
 Record one short dictation and insert the result:
@@ -154,10 +170,12 @@ Record without inserting:
 Create or edit `athena-dictate.toml` in the project root:
 
 ```toml
-model = "base.en"
+model = "base"
 device = "cpu"
 compute_type = "int8"
-language = "en"
+language = "auto"
+multilingual = false
+task = "transcribe"
 sample_rate = 16000
 channels = 1
 max_record_seconds = 0
@@ -175,6 +193,8 @@ Environment overrides:
 - `ATHENA_DICTATE_DEVICE`
 - `ATHENA_DICTATE_COMPUTE_TYPE`
 - `ATHENA_DICTATE_LANGUAGE`
+- `ATHENA_DICTATE_MULTILINGUAL`
+- `ATHENA_DICTATE_TASK`
 - `ATHENA_DICTATE_INSERTION_BACKEND`
 - `ATHENA_DICTATE_MAX_RECORD_SECONDS`
 
@@ -226,15 +246,21 @@ widget click
 
 ## faster-whisper Defaults
 
-The default configuration is intentionally conservative for CPU-only Linux
-laptops:
+The default configuration is intentionally conservative for CPU-only systems
+while supporting multilingual dictation:
 
-- `model = "base.en"`
+- `model = "base"`
+- `language = "auto"`
+- `multilingual = false`
+- `task = "transcribe"`
 - `device = "cpu"`
 - `compute_type = "int8"`
 
-Use `tiny.en` for lower latency, `small.en` for better quality, and larger
-models only when the machine has enough CPU/GPU headroom.
+Use `tiny` for lower multilingual latency, `small` for better multilingual
+quality, and larger models only when the machine has enough CPU/GPU headroom.
+English-only `.en` models remain available when multilingual input is not
+needed. The `translate` task produces English output; it is not arbitrary
+target-language translation.
 
 ## Comparison: Athena Whisper vs Cloud Dictation Apps
 
@@ -271,5 +297,5 @@ Compile-check the package:
 - Command mode for editing selected text by voice
 - Personal dictionary and phrase correction
 - Local transcript history
-- Latency benchmarks across `tiny.en`, `base.en`, and `small.en`
+- Latency benchmarks across `tiny`, `base`, and `small`
 - Packaging as a desktop app/service
