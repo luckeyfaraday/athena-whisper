@@ -101,34 +101,6 @@ def _x11_paste(text: str, focus_window: str | None, class_window: str | None) ->
 
 # ── Athena logo widget ────────────────────────────────────────────────────────
 
-def _force_native_topmost(widget: QWidget) -> None:
-    """Reassert topmost status with native APIs when Qt hints are not enough."""
-    widget.raise_()
-    if sys.platform != "win32":
-        return
-
-    try:
-        import ctypes
-
-        hwnd = int(widget.winId())
-        hwnd_topmost = -1
-        swp_nosize = 0x0001
-        swp_nomove = 0x0002
-        swp_noactivate = 0x0010
-        swp_showwindow = 0x0040
-        ctypes.windll.user32.SetWindowPos(
-            hwnd,
-            hwnd_topmost,
-            0,
-            0,
-            0,
-            0,
-            swp_nomove | swp_nosize | swp_noactivate | swp_showwindow,
-        )
-    except Exception:
-        pass
-
-
 class AthenaLogoWidget(QWidget):
     """Paints the Athena 6-line asterisk logo at any size."""
 
@@ -458,14 +430,6 @@ class DictationWidget(QWidget):
         self._reset_timer.setSingleShot(True)
         self._reset_timer.timeout.connect(lambda: self._set_state(State.IDLE))
 
-        self._topmost_timer = QTimer(self)
-        self._topmost_timer.timeout.connect(self._keep_topmost)
-        self._topmost_timer.start(1000)
-
-    def _keep_topmost(self) -> None:
-        if self.isVisible():
-            _force_native_topmost(self)
-
     def _update_ui(self) -> None:
         s = self._state
         sc = _STATE_COLORS[s]
@@ -635,15 +599,6 @@ class DictationWidget(QWidget):
                 pass
             self._tmpdir = None
 
-    def showEvent(self, event) -> None:
-        super().showEvent(event)
-        QTimer.singleShot(0, self._keep_topmost)
-
-    def changeEvent(self, event) -> None:
-        super().changeEvent(event)
-        if event.type() == QEvent.Type.WindowStateChange:
-            QTimer.singleShot(0, self._keep_topmost)
-
     def closeEvent(self, event) -> None:
         if self._record_worker is not None:
             self._record_worker.stop()
@@ -682,5 +637,4 @@ def launch_widget(cfg: DictationConfig) -> None:
         widget.move(geom.right() - widget.width() - 24, geom.top() + 48)
 
     widget.show()
-    widget._keep_topmost()
     sys.exit(app.exec())
