@@ -12,6 +12,7 @@ def test_config_defaults_match_v0_target() -> None:
     assert config.sample_rate == 16_000
     assert config.channels == 1
     assert config.max_record_seconds == 0.0
+    assert config.beam_size == 1
     assert config.insertion_backend == "auto"
 
 
@@ -30,3 +31,11 @@ def test_config_reads_multilingual_environment_overrides(monkeypatch) -> None:
     assert config.language == "es"
     assert config.multilingual is True
     assert config.task == "translate"
+
+
+def test_config_reads_beam_size_environment_override(monkeypatch) -> None:
+    monkeypatch.setenv("ATHENA_DICTATE_BEAM_SIZE", "5")
+
+    config = DictationConfig().with_env_overrides()
+
+    assert config.beam_size == 5
