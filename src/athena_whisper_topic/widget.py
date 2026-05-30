@@ -9,7 +9,12 @@ from pathlib import Path
 
 _ICON_SVG = Path(__file__).parent / "assets" / "athena-app-icon.svg"
 
+from typing import TYPE_CHECKING
+
 from .config import DictationConfig
+
+if TYPE_CHECKING:
+    from .transcriber import FasterWhisperTranscriber
 
 try:
     from PyQt6.QtCore import QEvent, QPoint, QPointF, QTimer, Qt, QThread, pyqtSignal as Signal
@@ -298,21 +303,32 @@ class TranscribeWorker(QThread):
     result = Signal(str)
     error_occurred = Signal(str)
 
-    def __init__(self, audio_path: Path, cfg: DictationConfig) -> None:
+    def __init__(self, audio_path: Path, transcriber: "FasterWhisperTranscriber") -> None:
         super().__init__()
         self._audio_path = audio_path
-        self._cfg = cfg
+        self._transcriber = transcriber
 
     def run(self) -> None:
         try:
             from .cleanup import cleanup_dictation_text
-            from .transcriber import FasterWhisperTranscriber
-            tr = FasterWhisperTranscriber(self._cfg)
-            transcript = tr.transcribe_file(self._audio_path)
-            text = cleanup_dictation_text(transcript.text, append_space=self._cfg.append_space)
+            transcript = self._transcriber.transcribe_file(self._audio_path)
+            text = cleanup_dictation_text(
+                transcript.text, append_space=self._transcriber.config.append_space
+            )
             self.result.emit(text)
         except Exception as exc:
             self.error_occurred.emit(str(exc))
+
+
+class WarmUpWorker(QThread):
+    """Loads the Whisper model in the background so the first dictation is fast."""
+
+    def __init__(self, transcriber: "FasterWhisperTranscriber") -> None:
+        super().__init__()
+        self._transcriber = transcriber
+
+    def run(self) -> None:
+        self._transcriber.warm_up()
 
 
 # ── Widget ────────────────────────────────────────────────────────────────────
@@ -325,6 +341,7 @@ class DictationWidget(QWidget):
         self._drag_pos: QPoint | None = None
         self._record_worker: RecordWorker | None = None
         self._transcribe_worker: TranscribeWorker | None = None
+        self._warmup_worker: WarmUpWorker | None = None
         self._tmpdir: tempfile.TemporaryDirectory | None = None  # type: ignore[type-arg]
         self._elapsed = 0.0
         self._spinner_frame = 0
@@ -334,10 +351,17 @@ class DictationWidget(QWidget):
         self._focus_window: str | None = None
         self._class_window: str | None = None
 
+        from .transcriber import FasterWhisperTranscriber
+        self._transcriber = FasterWhisperTranscriber(cfg)
+
         self._setup_window()
         self._build_ui()
         self._setup_timers()
         self._update_ui()
+
+        # Load the model in the background so the first transcription is fast.
+        self._warmup_worker = WarmUpWorker(self._transcriber)
+        self._warmup_worker.start()
 
     def _setup_window(self) -> None:
         self.setWindowTitle("Athena Dictate")
@@ -572,7 +596,7 @@ class DictationWidget(QWidget):
     def _on_recording_done(self, audio_path: object) -> None:
         path = Path(str(audio_path))
         self._set_state(State.TRANSCRIBING)
-        self._transcribe_worker = TranscribeWorker(path, self._cfg)
+        self._transcribe_worker = TranscribeWorker(path, self._transcriber)
         self._transcribe_worker.result.connect(self._on_transcription_done)
         self._transcribe_worker.error_occurred.connect(self._on_error)
         self._transcribe_worker.start()
@@ -605,6 +629,8 @@ class DictationWidget(QWidget):
             self._record_worker.wait(2000)
         if self._transcribe_worker is not None:
             self._transcribe_worker.wait(5000)
+        if self._warmup_worker is not None:
+            self._warmup_worker.wait(5000)
         self._cleanup_tmpdir()
         super().closeEvent(event)
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -12,18 +13,49 @@ from .types import TranscriptResult, TranscriptSegment, Word
 class FasterWhisperTranscriber:
     config: DictationConfig
     _model: Any | None = None
+    _model_lock: threading.Lock = field(
+        default_factory=threading.Lock, repr=False, compare=False
+    )
 
     @property
     def model(self) -> Any:
+        # Double-checked locking: the model is loaded once and reused for every
+        # transcription. Without the lock a warm-up thread and a transcription
+        # thread could both observe ``_model is None`` and load it twice.
         if self._model is None:
-            from faster_whisper import WhisperModel
+            with self._model_lock:
+                if self._model is None:
+                    from faster_whisper import WhisperModel
 
-            self._model = WhisperModel(
-                self.config.model,
-                device=self.config.device,
-                compute_type=self.config.compute_type,
-            )
+                    self._model = WhisperModel(
+                        self.config.model,
+                        device=self.config.device,
+                        compute_type=self.config.compute_type,
+                    )
         return self._model
+
+    def warm_up(self) -> None:
+        """Load the model and exercise the decode/VAD paths ahead of time.
+
+        Running a short silent buffer through ``transcribe`` forces the model,
+        feature extractor, and (when enabled) the VAD model to load, so the
+        first real dictation does not pay that one-time cost. Safe to call from
+        a background thread; failures are swallowed because warm-up is purely an
+        optimization.
+        """
+        try:
+            import numpy as np
+
+            silence = np.zeros(self.config.sample_rate, dtype="float32")
+            segments_iter, _info = self.model.transcribe(
+                silence,
+                beam_size=self.config.beam_size,
+                vad_filter=self.config.vad_filter,
+            )
+            for _ in segments_iter:
+                pass
+        except Exception:
+            pass
 
     def transcribe_file(self, audio_path: str | Path) -> TranscriptResult:
         language = self.config.language.strip()
