@@ -18,7 +18,7 @@ class DictationConfig:
     sample_rate: int = 16_000
     channels: int = 1
     max_record_seconds: float = 0.0
-    beam_size: int = 5
+    beam_size: int = 1
     vad_filter: bool = True
     word_timestamps: bool = False
     insertion_backend: str = "auto"
@@ -60,6 +60,7 @@ class DictationConfig:
             "ATHENA_DICTATE_TASK": ("task", str),
             "ATHENA_DICTATE_INSERTION_BACKEND": ("insertion_backend", str),
             "ATHENA_DICTATE_MAX_RECORD_SECONDS": ("max_record_seconds", float),
+            "ATHENA_DICTATE_BEAM_SIZE": ("beam_size", int),
         }
         updates: dict[str, object] = {}
         for env_name, (field_name, caster) in mapping.items():

@@ -179,9 +179,14 @@ task = "transcribe"
 sample_rate = 16000
 channels = 1
 max_record_seconds = 0
+beam_size = 1
 insertion_backend = "auto"
 append_space = true
 ```
+
+`beam_size = 1` uses greedy decoding, which is the fastest option and is a good
+fit for short, single-speaker dictation. Raise it (e.g. `5`) to trade speed for
+slightly better accuracy on harder audio.
 
 `max_record_seconds = 0` means record until the user clicks Stop or presses
 Enter in the terminal workflow. Set a positive value only if you want a hard
@@ -197,6 +202,7 @@ Environment overrides:
 - `ATHENA_DICTATE_TASK`
 - `ATHENA_DICTATE_INSERTION_BACKEND`
 - `ATHENA_DICTATE_MAX_RECORD_SECONDS`
+- `ATHENA_DICTATE_BEAM_SIZE`
 
 ## Insertion Backends
 
@@ -255,6 +261,7 @@ while supporting multilingual dictation:
 - `task = "transcribe"`
 - `device = "cpu"`
 - `compute_type = "int8"`
+- `beam_size = 1`
 
 Use `tiny` for lower multilingual latency, `small` for better multilingual
 quality, and larger models only when the machine has enough CPU/GPU headroom.
