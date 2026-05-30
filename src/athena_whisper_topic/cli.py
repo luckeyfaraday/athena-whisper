@@ -144,6 +144,10 @@ def record_once(
 ) -> None:
     """Record microphone audio once, transcribe it, and optionally paste the text."""
     cfg = _transcription_overrides(_load_config(config), language, multilingual, task)
+    # Load the model in the background so it is ready by the time recording ends.
+    transcriber = FasterWhisperTranscriber(cfg)
+    warmup_thread = threading.Thread(target=transcriber.warm_up, daemon=True)
+    warmup_thread.start()
     with tempfile.TemporaryDirectory(prefix="athena-dictate-") as tmpdir:
         audio_path = keep_audio or Path(tmpdir) / "recording.wav"
 
@@ -179,7 +183,7 @@ def record_once(
             record_wav(audio_path, seconds, sample_rate=cfg.sample_rate, channels=cfg.channels)
 
         typer.echo("Transcribing...")
-        result = FasterWhisperTranscriber(cfg).transcribe_file(audio_path)
+        result = transcriber.transcribe_file(audio_path)
 
     text = cleanup_dictation_text(result.text, append_space=cfg.append_space)
     typer.echo(text)
