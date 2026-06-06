@@ -34,7 +34,7 @@ WizardStyle=modern
 Source: "..\dist\Athena Dictate\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupFlags: unchecked
+Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

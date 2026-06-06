@@ -26,6 +26,9 @@ $iscc = @(
 
 if ($iscc) {
     & $iscc "build\windows-installer.iss"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Inno Setup compile failed (ISCC exit code $LASTEXITCODE)."
+    }
     Write-Output ""
     Write-Output "Built: dist\Athena Dictate Setup.exe"
 } else {
