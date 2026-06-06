@@ -1,0 +1,20 @@
+Build native installers: .exe, .dmg, and .AppImage
+
+Package the desktop app into a proper installer per platform instead of a raw
+PyInstaller folder/zip.
+
+- Windows: build/windows-installer.iss + build-windows.ps1 compile an Inno
+  Setup installer (dist/Athena Dictate Setup.exe) with Start-menu/desktop
+  shortcuts and a per-user (no-admin) install. The script skips the installer
+  gracefully if Inno Setup isn't installed.
+- macOS: build-macos.sh packs the .app into dist/Athena Dictate.dmg via hdiutil,
+  with an Applications drag-target.
+- Linux: build-linux.sh assembles an AppDir (AppRun + .desktop + icon) and runs
+  appimagetool to produce dist/Athena Dictate.AppImage.
+- CI: install Inno Setup on the Windows runner; build scripts now emit the final
+  installers directly, so the workflow just uploads them (and attaches them to
+  releases on a tag). if-no-files-found is now an error so a missing installer
+  fails the build loudly.
+- README: document the new installer outputs.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
