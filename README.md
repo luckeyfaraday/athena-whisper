@@ -314,16 +314,17 @@ Compile-check the package:
 
 Athena Whisper can be bundled into a double-clickable desktop app so you don't
 have to run it from a shell. Packaging uses [PyInstaller](https://pyinstaller.org/)
-and produces a windowed launcher that opens straight into the dictation widget:
+to produce a windowed launcher that opens straight into the dictation widget,
+then wraps it in a native installer per platform:
 
-- **Windows** → `dist/Athena Dictate/Athena Dictate.exe`
-- **macOS** → `dist/Athena Dictate.app`
-- **Linux** → `dist/Athena Dictate/Athena Dictate` (plus a `.desktop` launcher)
+- **Windows** → `dist/Athena Dictate Setup.exe` (Inno Setup installer)
+- **macOS** → `dist/Athena Dictate.dmg`
+- **Linux** → `dist/Athena Dictate.AppImage`
 
-**PyInstaller does not cross-compile** — build each app on its own OS.
+**PyInstaller does not cross-compile** — build each installer on its own OS.
 
 ```bash
-# Windows (PowerShell)
+# Windows (PowerShell) — requires Inno Setup (choco install innosetup)
 pwsh -File build/build-windows.ps1
 
 # macOS
@@ -334,8 +335,10 @@ bash build/build-linux.sh
 ```
 
 Each script sets up the virtualenv, installs build dependencies, generates the
-app icons from `assets/athena-app-icon.svg`, and runs PyInstaller with
-`build/athena-dictate.spec`.
+app icons from `assets/athena-app-icon.svg`, runs PyInstaller with
+`build/athena-dictate.spec`, and packages the result into the installer above.
+On Windows, if Inno Setup isn't installed the script still produces the
+`dist/Athena Dictate/` folder app and just skips the installer step.
 
 The Whisper model is **not** bundled: on first launch the app downloads the
 configured model (default `base`, ~140 MB) into the local cache, so the first
@@ -343,10 +346,10 @@ run needs internet and is slower. Later runs are fully offline.
 
 ### Building all three in CI
 
-`.github/workflows/build.yml` builds the Windows, macOS, and Linux apps on
-GitHub-hosted runners. Trigger it manually (Actions → "Build desktop apps" →
-Run workflow) or push a version tag (`vX.Y.Z`), which also attaches the packaged
-apps to a GitHub release.
+`.github/workflows/build.yml` builds the Windows `.exe`, macOS `.dmg`, and Linux
+`.AppImage` installers on GitHub-hosted runners. Trigger it manually (Actions →
+"Build desktop apps" → Run workflow) or push a version tag (`vX.Y.Z`), which also
+attaches the installers to a GitHub release.
 
 ## Roadmap
 
