@@ -11,6 +11,9 @@ on:
 
 jobs:
   build:
+    # Needed for the tagged-release step to create the release and attach assets.
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
