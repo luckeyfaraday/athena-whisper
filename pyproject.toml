@@ -29,6 +29,9 @@ gui = [
 [project.scripts]
 athena-dictate = "athena_whisper_topic.cli:app"
 
+[project.gui-scripts]
+athena-dictate-gui = "athena_whisper_topic.app:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/athena_whisper_topic"]
 
