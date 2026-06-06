@@ -14,7 +14,14 @@ Requires PyQt6 (with QtSvg) and Pillow, both dev/build-time only.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+# Render without a display server. Headless CI (e.g. the Linux build runner) has
+# no X server and would otherwise abort with "Could not load the Qt platform
+# plugin 'xcb'". Icons are rendered to an image, never shown, so offscreen is
+# always sufficient. setdefault keeps any platform a developer has chosen.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage, QPainter
