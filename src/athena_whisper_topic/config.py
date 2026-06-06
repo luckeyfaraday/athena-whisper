@@ -9,9 +9,12 @@ from typing import Any
 
 @dataclass(frozen=True)
 class DictationConfig:
+    backend: str = "faster_whisper"
     model: str = "base"
     device: str = "cpu"
     compute_type: str = "int8"
+    groq_model: str = "whisper-large-v3-turbo"
+    groq_api_key_env: str = "GROQ_API_KEY"
     language: str = "auto"
     multilingual: bool = False
     task: str = "transcribe"
@@ -52,9 +55,11 @@ class DictationConfig:
 
     def with_env_overrides(self) -> "DictationConfig":
         mapping: dict[str, tuple[str, type]] = {
+            "ATHENA_DICTATE_BACKEND": ("backend", str),
             "ATHENA_DICTATE_MODEL": ("model", str),
             "ATHENA_DICTATE_DEVICE": ("device", str),
             "ATHENA_DICTATE_COMPUTE_TYPE": ("compute_type", str),
+            "ATHENA_DICTATE_GROQ_MODEL": ("groq_model", str),
             "ATHENA_DICTATE_LANGUAGE": ("language", str),
             "ATHENA_DICTATE_MULTILINGUAL": ("multilingual", _parse_bool),
             "ATHENA_DICTATE_TASK": ("task", str),

@@ -170,9 +170,12 @@ Record without inserting:
 Create or edit `athena-dictate.toml` in the project root:
 
 ```toml
+backend = "faster_whisper"
 model = "base"
 device = "cpu"
 compute_type = "int8"
+groq_model = "whisper-large-v3-turbo"
+groq_api_key_env = "GROQ_API_KEY"
 language = "auto"
 multilingual = false
 task = "transcribe"
@@ -184,6 +187,15 @@ insertion_backend = "auto"
 append_space = true
 ```
 
+`backend` selects the transcription engine: `faster_whisper` (default, runs
+locally and offline) or `groq` (cloud API, fast but requires an API key and
+sends audio to Groq). For the Groq backend, install the extra with
+`pip install -e .[groq]`, set the API key in the environment named by
+`groq_api_key_env` (default `GROQ_API_KEY`), and choose a Groq-hosted model via
+`groq_model` (e.g. `whisper-large-v3` or `whisper-large-v3-turbo`). The
+`device`, `compute_type`, and `beam_size` settings apply only to the local
+`faster_whisper` backend.
+
 `beam_size = 1` uses greedy decoding, which is the fastest option and is a good
 fit for short, single-speaker dictation. Raise it (e.g. `5`) to trade speed for
 slightly better accuracy on harder audio.
@@ -194,9 +206,11 @@ recording cap.
 
 Environment overrides:
 
+- `ATHENA_DICTATE_BACKEND`
 - `ATHENA_DICTATE_MODEL`
 - `ATHENA_DICTATE_DEVICE`
 - `ATHENA_DICTATE_COMPUTE_TYPE`
+- `ATHENA_DICTATE_GROQ_MODEL`
 - `ATHENA_DICTATE_LANGUAGE`
 - `ATHENA_DICTATE_MULTILINGUAL`
 - `ATHENA_DICTATE_TASK`

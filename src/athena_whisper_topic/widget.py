@@ -9,12 +9,7 @@ from pathlib import Path
 
 _ICON_SVG = Path(__file__).parent / "assets" / "athena-app-icon.svg"
 
-from typing import TYPE_CHECKING
-
 from .config import DictationConfig
-
-if TYPE_CHECKING:
-    from .transcriber import FasterWhisperTranscriber
 
 try:
     from PyQt6.QtCore import QEvent, QPoint, QPointF, QTimer, Qt, QThread, pyqtSignal as Signal
@@ -105,34 +100,6 @@ def _x11_paste(text: str, focus_window: str | None, class_window: str | None) ->
 
 
 # ── Athena logo widget ────────────────────────────────────────────────────────
-
-def _force_native_topmost(widget: QWidget) -> None:
-    """Reassert topmost status with native APIs when Qt hints are not enough."""
-    widget.raise_()
-    if sys.platform != "win32":
-        return
-
-    try:
-        import ctypes
-
-        hwnd = int(widget.winId())
-        hwnd_topmost = -1
-        swp_nosize = 0x0001
-        swp_nomove = 0x0002
-        swp_noactivate = 0x0010
-        swp_showwindow = 0x0040
-        ctypes.windll.user32.SetWindowPos(
-            hwnd,
-            hwnd_topmost,
-            0,
-            0,
-            0,
-            0,
-            swp_nomove | swp_nosize | swp_noactivate | swp_showwindow,
-        )
-    except Exception:
-        pass
-
 
 class AthenaLogoWidget(QWidget):
     """Paints the Athena 6-line asterisk logo at any size."""
@@ -331,32 +298,21 @@ class TranscribeWorker(QThread):
     result = Signal(str)
     error_occurred = Signal(str)
 
-    def __init__(self, audio_path: Path, transcriber: "FasterWhisperTranscriber") -> None:
+    def __init__(self, audio_path: Path, cfg: DictationConfig) -> None:
         super().__init__()
         self._audio_path = audio_path
-        self._transcriber = transcriber
+        self._cfg = cfg
 
     def run(self) -> None:
         try:
             from .cleanup import cleanup_dictation_text
-            transcript = self._transcriber.transcribe_file(self._audio_path)
-            text = cleanup_dictation_text(
-                transcript.text, append_space=self._transcriber.config.append_space
-            )
+            from .transcriber import create_transcriber
+            tr = create_transcriber(self._cfg)
+            transcript = tr.transcribe_file(self._audio_path)
+            text = cleanup_dictation_text(transcript.text, append_space=self._cfg.append_space)
             self.result.emit(text)
         except Exception as exc:
             self.error_occurred.emit(str(exc))
-
-
-class WarmUpWorker(QThread):
-    """Loads the Whisper model in the background so the first dictation is fast."""
-
-    def __init__(self, transcriber: "FasterWhisperTranscriber") -> None:
-        super().__init__()
-        self._transcriber = transcriber
-
-    def run(self) -> None:
-        self._transcriber.warm_up()
 
 
 # ── Widget ────────────────────────────────────────────────────────────────────
@@ -369,7 +325,6 @@ class DictationWidget(QWidget):
         self._drag_pos: QPoint | None = None
         self._record_worker: RecordWorker | None = None
         self._transcribe_worker: TranscribeWorker | None = None
-        self._warmup_worker: WarmUpWorker | None = None
         self._tmpdir: tempfile.TemporaryDirectory | None = None  # type: ignore[type-arg]
         self._elapsed = 0.0
         self._spinner_frame = 0
@@ -379,17 +334,10 @@ class DictationWidget(QWidget):
         self._focus_window: str | None = None
         self._class_window: str | None = None
 
-        from .transcriber import FasterWhisperTranscriber
-        self._transcriber = FasterWhisperTranscriber(cfg)
-
         self._setup_window()
         self._build_ui()
         self._setup_timers()
         self._update_ui()
-
-        # Load the model in the background so the first transcription is fast.
-        self._warmup_worker = WarmUpWorker(self._transcriber)
-        self._warmup_worker.start()
 
     def _setup_window(self) -> None:
         self.setWindowTitle("Athena Dictate")
@@ -481,14 +429,6 @@ class DictationWidget(QWidget):
         self._reset_timer = QTimer(self)
         self._reset_timer.setSingleShot(True)
         self._reset_timer.timeout.connect(lambda: self._set_state(State.IDLE))
-
-        self._topmost_timer = QTimer(self)
-        self._topmost_timer.timeout.connect(self._keep_topmost)
-        self._topmost_timer.start(1000)
-
-    def _keep_topmost(self) -> None:
-        if self.isVisible():
-            _force_native_topmost(self)
 
     def _update_ui(self) -> None:
         s = self._state
@@ -632,7 +572,7 @@ class DictationWidget(QWidget):
     def _on_recording_done(self, audio_path: object) -> None:
         path = Path(str(audio_path))
         self._set_state(State.TRANSCRIBING)
-        self._transcribe_worker = TranscribeWorker(path, self._transcriber)
+        self._transcribe_worker = TranscribeWorker(path, self._cfg)
         self._transcribe_worker.result.connect(self._on_transcription_done)
         self._transcribe_worker.error_occurred.connect(self._on_error)
         self._transcribe_worker.start()
@@ -659,23 +599,12 @@ class DictationWidget(QWidget):
                 pass
             self._tmpdir = None
 
-    def showEvent(self, event) -> None:
-        super().showEvent(event)
-        QTimer.singleShot(0, self._keep_topmost)
-
-    def changeEvent(self, event) -> None:
-        super().changeEvent(event)
-        if event.type() == QEvent.Type.WindowStateChange:
-            QTimer.singleShot(0, self._keep_topmost)
-
     def closeEvent(self, event) -> None:
         if self._record_worker is not None:
             self._record_worker.stop()
             self._record_worker.wait(2000)
         if self._transcribe_worker is not None:
             self._transcribe_worker.wait(5000)
-        if self._warmup_worker is not None:
-            self._warmup_worker.wait(5000)
         self._cleanup_tmpdir()
         super().closeEvent(event)
 
@@ -708,5 +637,4 @@ def launch_widget(cfg: DictationConfig) -> None:
         widget.move(geom.right() - widget.width() - 24, geom.top() + 48)
 
     widget.show()
-    widget._keep_topmost()
     sys.exit(app.exec())

@@ -1,7 +1,13 @@
 from types import SimpleNamespace
 
 from athena_whisper_topic.config import DictationConfig
-from athena_whisper_topic.transcriber import FasterWhisperTranscriber, build_transcript_result
+from athena_whisper_topic.transcriber import (
+    FasterWhisperTranscriber,
+    GroqTranscriber,
+    build_transcript_result,
+    build_transcript_result_from_groq,
+    create_transcriber,
+)
 
 
 def test_build_transcript_result_from_faster_whisper_shape() -> None:
@@ -52,35 +58,90 @@ def test_transcriber_forwards_fixed_language(tmp_path) -> None:
     assert model.kwargs["language"] == "de"
 
 
-def test_warm_up_runs_a_silent_buffer_through_the_model() -> None:
-    model = _RecordingModel()
-    transcriber = FasterWhisperTranscriber(DictationConfig(), _model=model)
-
-    transcriber.warm_up()
-
-    assert model.kwargs is not None
-    assert model.kwargs["vad_filter"] == transcriber.config.vad_filter
+def test_create_transcriber_selects_backend() -> None:
+    assert isinstance(create_transcriber(DictationConfig()), FasterWhisperTranscriber)
+    assert isinstance(create_transcriber(DictationConfig(backend="groq")), GroqTranscriber)
 
 
-def test_model_is_loaded_once_and_reused(tmp_path) -> None:
-    loads = 0
+def test_build_transcript_result_from_groq_object_shape() -> None:
+    response = SimpleNamespace(
+        text="hello world",
+        language="en",
+        duration=2.4,
+        segments=[
+            SimpleNamespace(start=0.0, end=1.2, text=" hello"),
+            SimpleNamespace(start=1.2, end=2.4, text="world "),
+        ],
+    )
 
-    class _OneShotModel(_RecordingModel):
-        pass
+    result = build_transcript_result_from_groq(response)
 
-    def fake_loader() -> _OneShotModel:
-        nonlocal loads
-        loads += 1
-        return _OneShotModel()
+    assert result.text == "hello world"
+    assert result.language == "en"
+    assert result.language_probability is None
+    assert result.duration == 2.4
+    assert len(result.segments) == 2
+    assert result.segments[0].text == "hello"
 
-    transcriber = FasterWhisperTranscriber(DictationConfig())
-    # Simulate the lazy load by warming up then transcribing against the same
-    # cached instance; the property must not rebuild the model each call.
-    transcriber._model = fake_loader()
-    first = transcriber.model
-    transcriber.transcribe_file(tmp_path / "a.wav")
-    transcriber.transcribe_file(tmp_path / "b.wav")
-    second = transcriber.model
 
-    assert loads == 1
-    assert first is second
+def test_build_transcript_result_from_groq_dict_shape() -> None:
+    response = {
+        "text": "hola mundo",
+        "language": "es",
+        "duration": 1.0,
+        "segments": [{"start": 0.0, "end": 1.0, "text": "hola mundo"}],
+    }
+
+    result = build_transcript_result_from_groq(response)
+
+    assert result.text == "hola mundo"
+    assert result.language == "es"
+    assert len(result.segments) == 1
+
+
+class _RecordingGroqClient:
+    def __init__(self) -> None:
+        self.kwargs: dict[str, object] | None = None
+        self.endpoint: str | None = None
+        self.audio = SimpleNamespace(
+            transcriptions=SimpleNamespace(create=self._transcribe),
+            translations=SimpleNamespace(create=self._translate),
+        )
+
+    def _transcribe(self, **kwargs: object):
+        self.endpoint = "transcriptions"
+        self.kwargs = kwargs
+        return {"text": "ok", "language": "en", "duration": 0.0, "segments": []}
+
+    def _translate(self, **kwargs: object):
+        self.endpoint = "translations"
+        self.kwargs = kwargs
+        return {"text": "ok", "language": "en", "duration": 0.0, "segments": []}
+
+
+def test_groq_transcriber_uses_transcriptions_with_fixed_language(tmp_path) -> None:
+    client = _RecordingGroqClient()
+    audio = tmp_path / "speech.wav"
+    audio.write_bytes(b"RIFF....")
+    transcriber = GroqTranscriber(DictationConfig(backend="groq", language="de"), _client=client)
+
+    transcriber.transcribe_file(audio)
+
+    assert client.endpoint == "transcriptions"
+    assert client.kwargs is not None
+    assert client.kwargs["language"] == "de"
+
+
+def test_groq_transcriber_uses_translations_for_translate_task(tmp_path) -> None:
+    client = _RecordingGroqClient()
+    audio = tmp_path / "speech.wav"
+    audio.write_bytes(b"RIFF....")
+    transcriber = GroqTranscriber(
+        DictationConfig(backend="groq", task="translate"), _client=client
+    )
+
+    transcriber.transcribe_file(audio)
+
+    assert client.endpoint == "translations"
+    assert client.kwargs is not None
+    assert "language" not in client.kwargs

@@ -25,6 +25,9 @@ dev = [
 gui = [
   "PyQt6>=6.4",
 ]
+groq = [
+  "groq>=0.11.0",
+]
 
 [project.scripts]
 athena-dictate = "athena_whisper_topic.cli:app"
